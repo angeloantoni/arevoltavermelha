@@ -352,7 +352,7 @@ export default function AdminAutoresPage() {
                   aspectRatio="square"
                   enableCrop={true}
                   targetSlug={name || 'autor'}
-                  helpText="Selecione uma foto para enquadrar o rosto (1:1), ajustar o zoom, aplicar filtro P&B e enviar para o bucket 'imagens_autores' do Supabase Storage."
+                  helpText="Selecione uma foto para enquadrar o rosto (1:1), ajustar o zoom, aplicar filtro P&B e enviar para a subpasta 'imagens_autores' do bucket 'midia' no Supabase Storage."
                 />
 
                 <div>

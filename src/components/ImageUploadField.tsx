@@ -39,7 +39,6 @@ export default function ImageUploadField({
 
   const shouldCrop = enableCrop !== undefined ? enableCrop : (aspectRatio === 'square');
   const isAuthor = folder === 'autores' || Boolean(enableCrop) || aspectRatio === 'square' || Boolean(targetSlug && folder !== 'artigos');
-  const targetBucket = isAuthor ? 'imagens_autores' : 'imagens_artigos';
 
   const executeUpload = async (fileOrBlob: File | Blob, desiredName?: string) => {
     setUploading(true);
@@ -54,28 +53,28 @@ export default function ImageUploadField({
     let fileNameOnly: string;
 
     if (desiredName) {
-      filePath = desiredName.includes('/') ? desiredName.split('/').pop()! : desiredName;
-      fileNameOnly = filePath;
+      filePath = desiredName.startsWith('imagens_') ? desiredName : (isAuthor ? `imagens_autores/${desiredName.split('/').pop()}` : `imagens_artigos/${desiredName.split('/').pop()}`);
+      fileNameOnly = filePath.split('/').pop() || `${Date.now()}-${cleanSlug}.jpg`;
     } else if (isAuthor) {
       fileNameOnly = `${Date.now()}-${cleanSlug || 'autor'}.jpg`;
-      filePath = fileNameOnly;
+      filePath = `imagens_autores/${fileNameOnly}`;
     } else if (fileOrBlob instanceof File && fileOrBlob.name) {
       const cleanOriginal = fileOrBlob.name.toLowerCase().replace(/[^a-z0-9.-]/g, '-') || 'capa.jpg';
       fileNameOnly = `${Date.now()}-${cleanOriginal}`;
-      filePath = fileNameOnly;
+      filePath = `imagens_artigos/${fileNameOnly}`;
     } else {
       fileNameOnly = `${Date.now()}-capa.jpg`;
-      filePath = fileNameOnly;
+      filePath = `imagens_artigos/${fileNameOnly}`;
     }
 
     try {
       const contentType = fileOrBlob.type || (isAuthor ? 'image/jpeg' : 'image/jpeg');
 
-      // 1. Tentar upload direto no Supabase Storage (bucket 'imagens_artigos' ou 'imagens_autores')
+      // 1. Tentar upload direto no bucket 'midia' do Supabase Storage
       if (isSupabaseConfigured && supabase) {
         try {
           const { data, error: uploadError } = await supabase.storage
-            .from(targetBucket)
+            .from('midia')
             .upload(filePath, fileOrBlob, {
               contentType,
               cacheControl: '3600',
@@ -84,17 +83,17 @@ export default function ImageUploadField({
 
           if (!uploadError && data) {
             const { data: publicData } = supabase.storage
-              .from(targetBucket)
+              .from('midia')
               .getPublicUrl(filePath);
 
             if (publicData?.publicUrl) {
               onChange(publicData.publicUrl);
-              setSuccessMsg(`Upload concluído com sucesso no Supabase Storage (${targetBucket})!`);
+              setSuccessMsg('Upload concluído com sucesso no Supabase Storage!');
               setTimeout(() => setSuccessMsg(null), 3000);
               return true;
             }
           } else if (uploadError) {
-            console.warn(`Supabase Storage direto falhou no bucket ${targetBucket}, tentando rota da API:`, uploadError.message);
+            console.warn('Supabase Storage direto falhou no bucket midia, tentando rota da API:', uploadError.message);
           }
         } catch (supabaseErr) {
           console.warn('Falha na tentativa direta do Supabase:', supabaseErr);
@@ -108,9 +107,9 @@ export default function ImageUploadField({
 
       const formData = new FormData();
       formData.append('file', fileToSend);
-      formData.append('bucket', targetBucket);
+      formData.append('bucket', 'midia');
       formData.append('filePath', filePath);
-      if (folder) formData.append('folder', folder);
+      formData.append('folder', isAuthor ? 'imagens_autores' : 'imagens_artigos');
       if (targetSlug) formData.append('slug', targetSlug);
 
       const res = await fetch('/api/upload', {
@@ -176,7 +175,7 @@ export default function ImageUploadField({
     const cleanSlug = targetSlug
       ? targetSlug.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
       : 'autor';
-    const filePath = `${Date.now()}-${cleanSlug || 'autor'}.jpg`;
+    const filePath = `imagens_autores/${Date.now()}-${cleanSlug || 'autor'}.jpg`;
 
     const success = await executeUpload(croppedBlob, filePath);
     if (success) {
