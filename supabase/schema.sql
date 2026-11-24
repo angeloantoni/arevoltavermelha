@@ -117,6 +117,7 @@ GRANT SELECT ON TABLE authors, articles TO anon, authenticated;
 GRANT ALL ON TABLE authors, articles TO authenticated;
 GRANT ALL ON TABLE authors, articles TO service_role;
 GRANT ALL ON TABLE authors, articles TO postgres;
+
 -- 4. REGISTRO INSTITUCIONAL PADRÃO (CONSELHO EDITORIAL)
 INSERT INTO authors (id, name, slug, role, bio, avatar_url)
 VALUES (
@@ -129,26 +130,47 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 5. BUCKET DE ARMAZENAMENTO PÚBLICO (MIDIA) E POLÍTICAS DE STORAGE
+-- 5. BUCKETS DE ARMAZENAMENTO PÚBLICO (IMAGENS_ARTIGOS E IMAGENS_AUTORES)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('midia', 'midia', true)
+VALUES 
+  ('imagens_artigos', 'imagens_artigos', true),
+  ('imagens_autores', 'imagens_autores', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Leitura pública dos arquivos do bucket midia
-CREATE POLICY "Acesso público aos arquivos do bucket midia"
+-- Leitura pública dos arquivos
+CREATE POLICY "Acesso público aos arquivos de imagens_artigos"
   ON storage.objects FOR SELECT
-  USING (bucket_id = 'midia');
+  USING (bucket_id = 'imagens_artigos');
 
--- Upload permitido para usuários autenticados (ou anon se configurado)
-CREATE POLICY "Upload permitido no bucket midia"
+CREATE POLICY "Acesso público aos arquivos de imagens_autores"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'imagens_autores');
+
+-- Upload permitido nos buckets de imagens
+CREATE POLICY "Upload permitido no bucket imagens_artigos"
   ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'midia');
+  WITH CHECK (bucket_id = 'imagens_artigos');
 
-CREATE POLICY "Atualização permitida no bucket midia"
+CREATE POLICY "Upload permitido no bucket imagens_autores"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'imagens_autores');
+
+-- Atualização permitida
+CREATE POLICY "Atualização permitida no bucket imagens_artigos"
   ON storage.objects FOR UPDATE
-  USING (bucket_id = 'midia')
-  WITH CHECK (bucket_id = 'midia');
+  USING (bucket_id = 'imagens_artigos')
+  WITH CHECK (bucket_id = 'imagens_artigos');
 
-CREATE POLICY "Exclusão permitida no bucket midia"
+CREATE POLICY "Atualização permitida no bucket imagens_autores"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'imagens_autores')
+  WITH CHECK (bucket_id = 'imagens_autores');
+
+-- Exclusão permitida
+CREATE POLICY "Exclusão permitida no bucket imagens_artigos"
   ON storage.objects FOR DELETE
-  USING (bucket_id = 'midia');
+  USING (bucket_id = 'imagens_artigos');
+
+CREATE POLICY "Exclusão permitida no bucket imagens_autores"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'imagens_autores');

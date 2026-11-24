@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Obtém o cliente Supabase para uploads no servidor.
  * Se houver SUPABASE_SERVICE_ROLE_KEY configurada (ex: na Vercel),
- * utiliza para contornar políticas restritivas de RLS no bucket público 'midia'.
+ * utiliza para contornar políticas restritivas de RLS nos buckets públicos.
  */
 function getStorageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const folder = (formData.get('folder') as string) || '';
+    const bucketParam = (formData.get('bucket') as string) || '';
     const customFilePath = (formData.get('filePath') as string) || '';
     const slug = (formData.get('slug') as string) || '';
 
@@ -56,34 +57,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determina o caminho de destino no bucket 'midia'
+    // 1. Determina o bucket de destino: 'imagens_autores' para fotos de autores ou 'imagens_artigos' para capas
+    const isAuthor =
+      bucketParam === 'imagens_autores' ||
+      folder === 'autores' ||
+      Boolean(slug && folder !== 'artigos');
+
+    const targetBucket = isAuthor ? 'imagens_autores' : 'imagens_artigos';
+
+    // 2. Determina o caminho/nome do arquivo no bucket
     let filePath: string;
     let contentType = file.type || 'image/jpeg';
 
     if (customFilePath && customFilePath.trim()) {
       filePath = customFilePath.trim();
-    } else if (folder === 'autores' || slug) {
-      // Para fotos de autores: autores/${Date.now()}-${slug}.jpg
+    } else if (isAuthor) {
+      // Para fotos de autores: ${Date.now()}-${slug}.jpg
       const cleanSlug = (slug || file.name)
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '') || 'autor';
-      filePath = `autores/${Date.now()}-${cleanSlug}.jpg`;
+      filePath = `${Date.now()}-${cleanSlug}.jpg`;
       contentType = 'image/jpeg';
     } else {
-      // Para capas de artigos ou mídia geral: artigos/${Date.now()}-${cleanName}
-      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-') || 'imagem.jpg';
-      const targetFolder = folder ? `${folder}/` : 'artigos/';
-      filePath = `${targetFolder}${Date.now()}-${cleanName}`;
+      // Para capas de artigos: ${Date.now()}-${cleanName}
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '-') || 'capa.jpg';
+      filePath = `${Date.now()}-${cleanName}`;
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Envia diretamente para o bucket público 'midia' no Supabase Storage com upsert: true
+    // 3. Envia diretamente para o bucket correspondente com upsert: true
     const { data: uploadData, error: uploadError } = await storageClient.storage
-      .from('midia')
+      .from(targetBucket)
       .upload(filePath, buffer, {
         contentType,
         cacheControl: '3600',
@@ -91,21 +99,21 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Erro ao enviar imagem para o Supabase Storage:', uploadError);
+      console.error(`Erro ao enviar imagem para o bucket '${targetBucket}':`, uploadError);
       return NextResponse.json(
-        { error: `Erro no Supabase Storage: ${uploadError.message}` },
+        { error: `Erro no Supabase Storage (${targetBucket}): ${uploadError.message}` },
         { status: 500 }
       );
     }
 
-    // Obtém a URL pública do bucket 'midia'
+    // 4. Obtém a URL pública do bucket
     const { data: publicUrlData } = storageClient.storage
-      .from('midia')
+      .from(targetBucket)
       .getPublicUrl(filePath);
 
     if (!publicUrlData?.publicUrl) {
       return NextResponse.json(
-        { error: 'Não foi possível gerar a URL pública no Supabase Storage.' },
+        { error: `Não foi possível gerar a URL pública no bucket '${targetBucket}'.` },
         { status: 500 }
       );
     }
@@ -113,6 +121,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       url: publicUrlData.publicUrl,
       path: filePath,
+      bucket: targetBucket,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro ao processar upload do arquivo';

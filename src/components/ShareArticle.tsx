@@ -42,22 +42,114 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     window.open(url, '_blank');
   };
 
-  // Helper para carregar imagens de forma segura com crossOrigin antes de atribuir src
-  const loadImage = (src: string): Promise<HTMLImageElement> => {
+  // Interface para retorno do carregamento seguro de imagem com liberação de memória
+  interface SafeImageResult {
+    img: HTMLImageElement;
+    cleanup: () => void;
+  }
+
+  // Helper para carregar imagens de forma 100% segura contra CORS e sem contaminar o canvas
+  const loadImageSafely = async (url: string): Promise<SafeImageResult> => {
+    if (!url || typeof url !== 'string') {
+      throw new Error('URL da imagem não fornecida');
+    }
+
+    // Se já for data URL ou blob URL
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ img, cleanup: () => {} });
+        img.onerror = () => reject(new Error('Falha ao instanciar imagem local data/blob'));
+        img.src = url;
+      });
+    }
+
+    let blob: Blob | null = null;
+
+    // 1. Tentar carregar via fetch direto com mode 'cors'
+    try {
+      const res = await fetch(url, { mode: 'cors' });
+      if (res.ok) {
+        blob = await res.blob();
+      }
+    } catch (err) {
+      console.warn('Fetch direto com CORS falhou, tentando rota de proxy interna:', err);
+    }
+
+    // 2. Se falhar por bloqueio de CORS em host externo, usar a rota interna /api/image-proxy
+    if (!blob && (url.startsWith('http://') || url.startsWith('https://'))) {
+      try {
+        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+        const proxyRes = await fetch(proxyUrl);
+        if (proxyRes.ok) {
+          blob = await proxyRes.blob();
+        }
+      } catch (proxyErr) {
+        console.warn('Proxy interno de imagem falhou:', proxyErr);
+      }
+    }
+
+    // 3. Se obtivemos o Blob, criamos um objectUrl local limpo (sem restrições de CORS)
+    if (blob) {
+      const objectUrl = URL.createObjectURL(blob);
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          resolve({
+            img,
+            cleanup: () => URL.revokeObjectURL(objectUrl),
+          });
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('Falha ao decodificar imagem a partir do Blob'));
+        };
+        img.src = objectUrl;
+      });
+    }
+
+    // 4. Último recurso (para arquivos estáticos locais como /logo_horizontal.webp)
     return new Promise((resolve, reject) => {
       const img = new Image();
-      // Sempre definir crossOrigin antes de atribuir src para evitar tainted canvas
       img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => {
-        // Fallback sem crossOrigin se o host não enviar cabeçalhos CORS
-        const fallbackImg = new Image();
-        fallbackImg.onload = () => resolve(fallbackImg);
-        fallbackImg.onerror = () => reject(new Error(`Falha ao carregar imagem: ${src}`));
-        fallbackImg.src = src;
-      };
-      img.src = src;
+      img.onload = () => resolve({ img, cleanup: () => {} });
+      img.onerror = () => reject(new Error(`Falha definitiva ao carregar imagem: ${url}`));
+      img.src = url;
     });
+  };
+
+  // Helper para desenhar imagem simulando 'object-fit: cover' no Canvas
+  const drawImageCover = (
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ) => {
+    const nw = img.naturalWidth || img.width;
+    const nh = img.naturalHeight || img.height;
+    if (!nw || !nh) return;
+
+    const imgAspect = nw / nh;
+    const boxAspect = w / h;
+
+    let sx = 0;
+    let sy = 0;
+    let sWidth = nw;
+    let sHeight = nh;
+
+    if (imgAspect > boxAspect) {
+      // Imagem mais larga que a moldura: recorta as laterais simetricamente
+      sWidth = nh * boxAspect;
+      sx = (nw - sWidth) / 2;
+    } else {
+      // Imagem mais alta que a moldura: recorta topo e base simetricamente
+      sHeight = nw / boxAspect;
+      sy = (nh - sHeight) / 2;
+    }
+
+    ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, w, h);
   };
 
   // Helper para desenhar retângulos com cantos arredondados
@@ -160,64 +252,68 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     // 3. TOPO: LOGOTIPO OFICIAL HORIZONTAL COM PROPORÇÃO NATIVA E TRATAMENTO DE COR
     let topSubtitleY = 275;
     try {
-      const logoImg = await loadImage('/logo_horizontal.webp');
-      const naturalW = logoImg.naturalWidth || logoImg.width;
-      const naturalH = logoImg.naturalHeight || logoImg.height;
-      const aspectRatio = naturalW / naturalH;
+      const { img: logoImg, cleanup: logoCleanup } = await loadImageSafely('/logo_horizontal.webp');
+      try {
+        const naturalW = logoImg.naturalWidth || logoImg.width;
+        const naturalH = logoImg.naturalHeight || logoImg.height;
+        const aspectRatio = naturalW / naturalH;
 
-      // Largura alvo de 640px e cálculo automático de altura mantendo proporção nativa
-      const targetWidth = 640;
-      const targetHeight = targetWidth / aspectRatio;
-      const targetX = (1080 - targetWidth) / 2;
-      const targetY = 90;
+        // Largura alvo de 640px e cálculo automático de altura mantendo proporção nativa
+        const targetWidth = 640;
+        const targetHeight = targetWidth / aspectRatio;
+        const targetX = (1080 - targetWidth) / 2;
+        const targetY = 90;
 
-      // Criar offscreen canvas para manipular os pixels e inverter preto para branco
-      const offscreen = document.createElement('canvas');
-      offscreen.width = naturalW;
-      offscreen.height = naturalH;
-      const offCtx =
-        offscreen.getContext('2d', { willReadFrequently: true }) ||
-        offscreen.getContext('2d');
+        // Criar offscreen canvas para manipular os pixels e inverter preto para branco
+        const offscreen = document.createElement('canvas');
+        offscreen.width = naturalW;
+        offscreen.height = naturalH;
+        const offCtx =
+          offscreen.getContext('2d', { willReadFrequently: true }) ||
+          offscreen.getContext('2d');
 
-      if (offCtx) {
-        offCtx.drawImage(logoImg, 0, 0, naturalW, naturalH);
-        const imgData = offCtx.getImageData(0, 0, naturalW, naturalH);
-        const data = imgData.data;
+        if (offCtx) {
+          offCtx.drawImage(logoImg, 0, 0, naturalW, naturalH);
+          const imgData = offCtx.getImageData(0, 0, naturalW, naturalH);
+          const data = imgData.data;
 
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-          const a = data[i + 3];
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
 
-          // Se o pixel tiver opacidade
-          if (a > 15) {
-            // Preservar pixels vermelhos da bandeira e da palavra "VERMELHA" (R > 120 && G < 80)
-            const isRed = r > 120 && g < 80;
+            // Se o pixel tiver opacidade
+            if (a > 15) {
+              // Preservar pixels vermelhos da bandeira e da palavra "VERMELHA" (R > 120 && G < 80)
+              const isRed = r > 120 && g < 80;
 
-            if (!isRed) {
-              // Converter traços pretos/escuros (R < 80 && G < 80 && B < 80) para branco puro (#FFFFFF)
-              if (r < 80 && g < 80 && b < 80) {
-                data[i] = 255;
-                data[i + 1] = 255;
-                data[i + 2] = 255;
-              } else if (r < 120 && g < 120 && b < 120) {
-                // Suavização de antialiasing escuro
-                data[i] = 255;
-                data[i + 1] = 255;
-                data[i + 2] = 255;
+              if (!isRed) {
+                // Converter traços pretos/escuros (R < 80 && G < 80 && B < 80) para branco puro (#FFFFFF)
+                if (r < 80 && g < 80 && b < 80) {
+                  data[i] = 255;
+                  data[i + 1] = 255;
+                  data[i + 2] = 255;
+                } else if (r < 120 && g < 120 && b < 120) {
+                  // Suavização de antialiasing escuro
+                  data[i] = 255;
+                  data[i + 1] = 255;
+                  data[i + 2] = 255;
+                }
               }
             }
           }
+
+          offCtx.putImageData(imgData, 0, 0);
+          ctx.drawImage(offscreen, targetX, targetY, targetWidth, targetHeight);
+        } else {
+          ctx.drawImage(logoImg, targetX, targetY, targetWidth, targetHeight);
         }
 
-        offCtx.putImageData(imgData, 0, 0);
-        ctx.drawImage(offscreen, targetX, targetY, targetWidth, targetHeight);
-      } else {
-        ctx.drawImage(logoImg, targetX, targetY, targetWidth, targetHeight);
+        topSubtitleY = targetY + targetHeight + 30;
+      } finally {
+        logoCleanup();
       }
-
-      topSubtitleY = targetY + targetHeight + 30;
     } catch {
       // Fallback tipográfico caso o arquivo falhe
       ctx.fillStyle = '#FFFFFF';
@@ -397,34 +493,38 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     }
 
     // DESENHAR FOTOGRAFIA DE CAPA
-    try {
-      const coverImg = await loadImage(article.cover_image_url);
+    const coverUrl =
+      (article as any).cover_image ||
+      (article as any).coverImage ||
+      (article as any).image ||
+      article.cover_image_url;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(photoX, photoY, photoW, photoH);
-      ctx.clip();
-      ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
+    let coverRendered = false;
+    if (coverUrl) {
+      try {
+        const { img: coverImg, cleanup: coverCleanup } = await loadImageSafely(coverUrl);
+        try {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(photoX, photoY, photoW, photoH);
+          ctx.clip();
+          ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
 
-      const imgAspect = coverImg.width / coverImg.height;
-      const boxAspect = photoW / photoH;
-      let drawW = photoW;
-      let drawH = photoH;
-      let drawX = photoX;
-      let drawY = photoY;
+          // Ajuste proporcional 'object-fit: cover' sem distorção nem esticamento
+          drawImageCover(ctx, coverImg, photoX, photoY, photoW, photoH);
 
-      if (imgAspect > boxAspect) {
-        drawW = photoH * imgAspect;
-        drawX = photoX - (drawW - photoW) / 2;
-      } else {
-        drawH = photoW / imgAspect;
-        drawY = photoY - (drawH - photoH) / 2;
+          ctx.filter = 'none';
+          ctx.restore();
+          coverRendered = true;
+        } finally {
+          coverCleanup();
+        }
+      } catch (err) {
+        console.warn('Falha ao renderizar fotografia de capa no card de Stories:', err);
       }
+    }
 
-      ctx.drawImage(coverImg, drawX, drawY, drawW, drawH);
-      ctx.filter = 'none';
-      ctx.restore();
-    } catch {
+    if (!coverRendered) {
       ctx.fillStyle = '#1e1e1e';
       ctx.fillRect(photoX, photoY, photoW, photoH);
       ctx.fillStyle = '#888888';
@@ -466,25 +566,40 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     const avatarCenterY = bottomBlockY + 70;
     const avatarRadius = 38;
 
-    try {
-      const avatarUrl = article.author?.avatar_url || '/logo.webp';
-      const avatarImg = await loadImage(avatarUrl);
+    let avatarRendered = false;
+    const avatarUrl = article.author?.avatar_url || '/logo.webp';
+    if (avatarUrl) {
+      try {
+        const { img: avatarImg, cleanup: avatarCleanup } = await loadImageSafely(avatarUrl);
+        try {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.filter = 'grayscale(100%) contrast(125%)';
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.filter = 'grayscale(100%) contrast(125%)';
-      ctx.drawImage(
-        avatarImg,
-        avatarCenterX - avatarRadius,
-        avatarCenterY - avatarRadius,
-        avatarRadius * 2,
-        avatarRadius * 2
-      );
-      ctx.filter = 'none';
-      ctx.restore();
-    } catch {
+          // Desenho do avatar em proporção cover circular
+          drawImageCover(
+            ctx,
+            avatarImg,
+            avatarCenterX - avatarRadius,
+            avatarCenterY - avatarRadius,
+            avatarRadius * 2,
+            avatarRadius * 2
+          );
+
+          ctx.filter = 'none';
+          ctx.restore();
+          avatarRendered = true;
+        } finally {
+          avatarCleanup();
+        }
+      } catch {
+        // Fallback abaixo
+      }
+    }
+
+    if (!avatarRendered) {
       ctx.fillStyle = '#111111';
       ctx.beginPath();
       ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);

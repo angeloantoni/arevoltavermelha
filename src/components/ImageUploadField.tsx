@@ -38,6 +38,8 @@ export default function ImageUploadField({
   const [cropImageSrc, setCropImageSrc] = useState<string>('');
 
   const shouldCrop = enableCrop !== undefined ? enableCrop : (aspectRatio === 'square');
+  const isAuthor = folder === 'autores' || Boolean(enableCrop) || aspectRatio === 'square' || Boolean(targetSlug && folder !== 'artigos');
+  const targetBucket = isAuthor ? 'imagens_autores' : 'imagens_artigos';
 
   const executeUpload = async (fileOrBlob: File | Blob, desiredName?: string) => {
     setUploading(true);
@@ -46,31 +48,34 @@ export default function ImageUploadField({
 
     const cleanSlug = targetSlug
       ? targetSlug.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      : 'imagem';
+      : 'autor';
 
     let filePath: string;
     let fileNameOnly: string;
 
     if (desiredName) {
-      filePath = desiredName;
-      fileNameOnly = desiredName.split('/').pop() || `${Date.now()}-${cleanSlug}.jpg`;
+      filePath = desiredName.includes('/') ? desiredName.split('/').pop()! : desiredName;
+      fileNameOnly = filePath;
+    } else if (isAuthor) {
+      fileNameOnly = `${Date.now()}-${cleanSlug || 'autor'}.jpg`;
+      filePath = fileNameOnly;
     } else if (fileOrBlob instanceof File && fileOrBlob.name) {
-      const cleanOriginal = fileOrBlob.name.toLowerCase().replace(/[^a-z0-9.-]/g, '-') || 'imagem.jpg';
+      const cleanOriginal = fileOrBlob.name.toLowerCase().replace(/[^a-z0-9.-]/g, '-') || 'capa.jpg';
       fileNameOnly = `${Date.now()}-${cleanOriginal}`;
-      filePath = `${folder ? `${folder}/` : ''}${fileNameOnly}`;
+      filePath = fileNameOnly;
     } else {
-      fileNameOnly = `${Date.now()}-${cleanSlug || 'recorte'}.jpg`;
-      filePath = `${folder ? `${folder}/` : ''}${fileNameOnly}`;
+      fileNameOnly = `${Date.now()}-capa.jpg`;
+      filePath = fileNameOnly;
     }
 
     try {
-      const contentType = fileOrBlob.type || 'image/jpeg';
+      const contentType = fileOrBlob.type || (isAuthor ? 'image/jpeg' : 'image/jpeg');
 
-      // 1. Tentar upload direto no Supabase Storage (bucket 'midia')
+      // 1. Tentar upload direto no Supabase Storage (bucket 'imagens_artigos' ou 'imagens_autores')
       if (isSupabaseConfigured && supabase) {
         try {
           const { data, error: uploadError } = await supabase.storage
-            .from('midia')
+            .from(targetBucket)
             .upload(filePath, fileOrBlob, {
               contentType,
               cacheControl: '3600',
@@ -79,17 +84,17 @@ export default function ImageUploadField({
 
           if (!uploadError && data) {
             const { data: publicData } = supabase.storage
-              .from('midia')
+              .from(targetBucket)
               .getPublicUrl(filePath);
 
             if (publicData?.publicUrl) {
               onChange(publicData.publicUrl);
-              setSuccessMsg('Upload concluído com sucesso no Supabase Storage!');
+              setSuccessMsg(`Upload concluído com sucesso no Supabase Storage (${targetBucket})!`);
               setTimeout(() => setSuccessMsg(null), 3000);
               return true;
             }
           } else if (uploadError) {
-            console.warn('Supabase Storage direto falhou, tentando rota da API:', uploadError.message);
+            console.warn(`Supabase Storage direto falhou no bucket ${targetBucket}, tentando rota da API:`, uploadError.message);
           }
         } catch (supabaseErr) {
           console.warn('Falha na tentativa direta do Supabase:', supabaseErr);
@@ -103,8 +108,9 @@ export default function ImageUploadField({
 
       const formData = new FormData();
       formData.append('file', fileToSend);
+      formData.append('bucket', targetBucket);
+      formData.append('filePath', filePath);
       if (folder) formData.append('folder', folder);
-      if (filePath) formData.append('filePath', filePath);
       if (targetSlug) formData.append('slug', targetSlug);
 
       const res = await fetch('/api/upload', {
@@ -170,7 +176,7 @@ export default function ImageUploadField({
     const cleanSlug = targetSlug
       ? targetSlug.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
       : 'autor';
-    const filePath = `${folder ? `${folder}/` : ''}${Date.now()}-${cleanSlug || 'autor'}.jpg`;
+    const filePath = `${Date.now()}-${cleanSlug || 'autor'}.jpg`;
 
     const success = await executeUpload(croppedBlob, filePath);
     if (success) {
