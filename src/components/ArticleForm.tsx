@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock, Tag, 
 import { ArticleCategory, PublicationType, Article, Author } from '@/lib/types';
 import { calculateReadingTime } from '@/lib/readingTime';
 import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from '@/lib/uuid';
+import { generateSlug } from '@/lib/slug';
 import ImageUploadField from '@/components/ImageUploadField';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
@@ -112,14 +113,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
     const val = e.target.value;
     setTitle(val);
     if (mode === 'create' && !initialArticle) {
-      setSlug(
-        val
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^\w\s-]/g, '')
-          .replace(/\s+/g, '-')
-      );
+      setSlug(generateSlug(val));
     }
   };
 
@@ -135,7 +129,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
     setSubmitting(true);
 
     try {
-      const payload = {
+      const payload: Record<string, any> = {
         title: title.trim(),
         subtitle: subtitle.trim(),
         slug: slug.trim(),
@@ -150,6 +144,10 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
         reading_time_minutes: readingTimeMinutes,
         status: 'published' as const,
       };
+
+      if (mode === 'edit' && initialArticle?.id) {
+        payload.id = initialArticle.id;
+      }
 
       const url =
         mode === 'edit' && initialArticle?.id

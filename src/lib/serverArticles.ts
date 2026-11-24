@@ -7,6 +7,7 @@ import { INITIAL_ARTICLES } from './data';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { calculateReadingTime } from './readingTime';
 import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from './uuid';
+import { generateSlug } from './slug';
 import {
   ensureConselhoEditorialInSupabase,
   getAllAuthors as getServerAuthors,
@@ -228,14 +229,24 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
 }
 
 /**
- * Criação e publicação de novo artigo com validação de UUID e persistência real.
+ * Criação e publicação de novo artigo com validação de UUID e persistência real no Supabase.
+ * Pre-check de unicidade de slug e retry automático com tratamento de erro PostgreSQL 23505.
  */
 export async function createArticle(
   payload: Omit<Article, 'id' | 'created_at' | 'published_at' | 'reading_time_minutes'> & {
     id?: string;
     reading_time_minutes?: number;
+    published_at?: string;
   }
 ): Promise<Article> {
+  // 0. Se possuir id UUID de artigo existente, delega estritamente para updateArticle
+  if (payload.id && isValidUuid(payload.id)) {
+    const existing = await getArticleById(payload.id);
+    if (existing) {
+      return updateArticle(payload.id, payload);
+    }
+  }
+
   if (!payload.title || !payload.title.trim()) {
     throw new Error('O título do artigo é obrigatório.');
   }
@@ -243,19 +254,43 @@ export async function createArticle(
     throw new Error('O conteúdo em Markdown é obrigatório.');
   }
 
-  const slug =
-    payload.slug?.trim() ||
-    payload.title
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-');
+  // 1. Gera o slug limpo a partir do título (ou slug customizado)
+  const rawCandidate = payload.slug?.trim() || payload.title.trim();
+  const baseSlug = generateSlug(rawCandidate) || 'artigo';
+
+  let targetSlug = baseSlug;
+
+  // 2. Pré-consulta no Supabase para verificar colisão de slug
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: existingSlugs, error: searchError } = await supabase
+        .from('articles')
+        .select('slug')
+        .ilike('slug', `${baseSlug}%`);
+
+      if (!searchError && existingSlugs && existingSlugs.length > 0) {
+        const slugSet = new Set(existingSlugs.map((s: { slug: string }) => s.slug.toLowerCase()));
+        if (slugSet.has(baseSlug.toLowerCase())) {
+          targetSlug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+          while (slugSet.has(targetSlug.toLowerCase())) {
+            targetSlug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+          }
+        }
+      }
+    } catch (searchErr) {
+      console.warn('Aviso: Falha ao consultar slugs existentes no Supabase:', searchErr);
+    }
+  } else {
+    const current = ensureLocalStore();
+    if (current.some((a) => a.slug.toLowerCase() === baseSlug.toLowerCase())) {
+      targetSlug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+  }
 
   const now = new Date().toISOString();
   const { minutes: calculatedTime } = calculateReadingTime(payload.content);
 
-  // Garante ID UUID válido
+  // Garante ID UUID válido para o novo artigo
   const newId = payload.id && isValidUuid(payload.id) ? payload.id : crypto.randomUUID();
 
   // Garante UUID válido para autor (padrão: Conselho Editorial)
@@ -272,11 +307,11 @@ export async function createArticle(
     ? Array.from(new Set(payload.tags.map((t) => t.trim().toUpperCase()).filter(Boolean)))
     : [];
 
-  const newArticle: Article = {
+  const cleanPayload = {
     id: newId,
     title: payload.title.trim(),
     subtitle: payload.subtitle?.trim() || '',
-    slug,
+    slug: targetSlug,
     category: payload.category || 'EDITORIAL',
     publication_type: payload.publication_type || 'ARTIGO EDITORIAL',
     excerpt: payload.excerpt?.trim() || payload.content.slice(0, 160).trim(),
@@ -285,65 +320,107 @@ export async function createArticle(
       payload.cover_image_url ||
       'https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1200&auto=format&fit=crop',
     cover_caption: payload.cover_caption || '',
-    is_hero_featured: true,
-    hero_order: 1,
+    is_hero_featured: Boolean(payload.is_hero_featured),
+    hero_order: Number(payload.hero_order) || 1,
     reading_time_minutes: calculatedTime,
     author_id: validAuthorId,
-    translator_id: validTranslatorId || undefined,
+    translator_id: validTranslatorId,
     tags: cleanTags,
     status: payload.status || 'published',
-    published_at: now,
+    published_at: payload.published_at || now,
     created_at: now,
   };
 
-  // 1. Tentar salvar no Supabase se configurado
+  const authors = await getServerAuthors();
+
+  // 3. Tentar persistência no Supabase com tratamento de retry automático para erro 23505 (articles_slug_key)
   if (isSupabaseConfigured && supabase) {
-    // Garante que o autor com esse UUID existe na tabela authors do Supabase
     await ensureConselhoEditorialInSupabase();
 
-    const { error } = await supabase.from('articles').insert({
-      id: newArticle.id,
-      title: newArticle.title,
-      subtitle: newArticle.subtitle,
-      slug: newArticle.slug,
-      category: newArticle.category,
-      publication_type: newArticle.publication_type,
-      excerpt: newArticle.excerpt,
-      content: newArticle.content,
-      cover_image_url: newArticle.cover_image_url,
-      cover_caption: newArticle.cover_caption,
-      is_hero_featured: newArticle.is_hero_featured,
-      hero_order: newArticle.hero_order,
-      reading_time_minutes: newArticle.reading_time_minutes,
-      author_id: validAuthorId,
-      translator_id: validTranslatorId,
-      tags: newArticle.tags,
-      status: newArticle.status,
-      published_at: newArticle.published_at,
-      created_at: newArticle.created_at,
-    });
+    let { data, error } = await supabase
+      .from('articles')
+      .insert(cleanPayload)
+      .select('*, authors(*)')
+      .maybeSingle();
+
+    // Retry automático caso ocorra código 23505 (articles_slug_key)
+    if (
+      error &&
+      (error.code === '23505' ||
+        error.message?.includes('articles_slug_key') ||
+        error.message?.includes('duplicate key value'))
+    ) {
+      console.warn(`Colisão de slug detectada (${error.message}). Executando retry automático com sufixo temporal...`);
+      const retrySlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
+      cleanPayload.slug = retrySlug;
+
+      const retryResult = await supabase
+        .from('articles')
+        .insert(cleanPayload)
+        .select('*, authors(*)')
+        .maybeSingle();
+
+      data = retryResult.data;
+      error = retryResult.error;
+
+      // Fallback final se colidir no mesmo milissegundo
+      if (
+        error &&
+        (error.code === '23505' ||
+          error.message?.includes('articles_slug_key') ||
+          error.message?.includes('duplicate key value'))
+      ) {
+        const fallbackSlug = `${baseSlug}-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+        cleanPayload.slug = fallbackSlug;
+
+        const fallbackResult = await supabase
+          .from('articles')
+          .insert(cleanPayload)
+          .select('*, authors(*)')
+          .maybeSingle();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+    }
 
     if (error) {
       console.error('Erro retornado pelo Supabase na inserção:', error);
       throw new Error(`Falha no banco Supabase: ${error.message}`);
     }
+
+    if (data) {
+      const createdArticle = normalizeArticleRow(data, authors);
+      const current = ensureLocalStore();
+      const updated = [
+        createdArticle,
+        ...current.filter((a) => a.id !== createdArticle.id && a.slug !== createdArticle.slug),
+      ];
+      saveLocalStore(updated);
+      revalidateEditorialPaths(createdArticle.slug);
+      return createdArticle;
+    }
   }
 
-  // 2. Persistir no armazenamento local
+  // 4. Persistir no armazenamento local
+  const fallbackArticle: Article = {
+    ...cleanPayload,
+    translator_id: validTranslatorId || undefined,
+  };
   const current = ensureLocalStore();
-  const updated = [newArticle, ...current.filter((a) => a.id !== newArticle.id && a.slug !== newArticle.slug)];
+  const updated = [
+    fallbackArticle,
+    ...current.filter((a) => a.id !== fallbackArticle.id && a.slug !== fallbackArticle.slug),
+  ];
   saveLocalStore(updated);
-
-  // 3. Revalidar rotas
-  revalidateEditorialPaths(newArticle.slug);
-
-  const authors = await getServerAuthors();
-  return attachAuthor(newArticle, authors);
+  revalidateEditorialPaths(fallbackArticle.slug);
+  return attachAuthor(fallbackArticle, authors);
 }
 
 /**
  * Atualização de artigo existente (UPDATE).
- * Valida o UUID e sanitiza rigorosamente os campos enviados para a tabela do Supabase.
+ * Executa exclusivamente .update(cleanPayload).eq('id', id).select('*, authors(*)').
+ * Mantém o slug original ou atualiza apenas se o novo slug não pertencer a outro id (.neq('id', id)).
  */
 export async function updateArticle(
   id: string,
@@ -355,15 +432,74 @@ export async function updateArticle(
   }
 
   const authors = await getServerAuthors();
+
+  // 2. Busca o slug atual do artigo para controle de unicidade
+  let originalSlug: string | undefined;
+  if (isSupabaseConfigured && supabase) {
+    const { data: currentData } = await supabase
+      .from('articles')
+      .select('slug')
+      .eq('id', id)
+      .maybeSingle();
+    if (currentData?.slug) {
+      originalSlug = currentData.slug;
+    }
+  }
+  if (!originalSlug) {
+    const current = ensureLocalStore();
+    const existing = current.find((a) => a.id === id);
+    if (existing) originalSlug = existing.slug;
+  }
+
   const cleanTags = Array.isArray(payload.tags)
     ? Array.from(new Set(payload.tags.map((t) => t.trim().toUpperCase()).filter(Boolean)))
     : undefined;
 
-  // 2. Sanitização estrita do payload (somente colunas válidas da tabela articles, sem objetos de join)
+  // 3. Sanitização estrita do payload (somente colunas válidas da tabela articles, sem objetos de join)
   const cleanPayload: Record<string, any> = {};
   if (payload.title !== undefined) cleanPayload.title = payload.title.trim();
   if (payload.subtitle !== undefined) cleanPayload.subtitle = payload.subtitle?.trim() || '';
-  if (payload.slug !== undefined) cleanPayload.slug = payload.slug.trim();
+
+  // Tratamento do slug na atualização:
+  // Mantenha o slug original do artigo ou atualize-o apenas se o novo slug não pertencer a outro id (.neq('id', id))
+  if (payload.slug !== undefined) {
+    const candidateSlug = generateSlug(payload.slug.trim());
+    if (candidateSlug && candidateSlug !== originalSlug) {
+      let isDuplicate = false;
+      if (isSupabaseConfigured && supabase) {
+        const { data: duplicate } = await supabase
+          .from('articles')
+          .select('id')
+          .eq('slug', candidateSlug)
+          .neq('id', id)
+          .maybeSingle();
+
+        if (duplicate) {
+          isDuplicate = true;
+        }
+      } else {
+        const current = ensureLocalStore();
+        if (current.some((a) => a.id !== id && a.slug.toLowerCase() === candidateSlug.toLowerCase())) {
+          isDuplicate = true;
+        }
+      }
+
+      if (isDuplicate) {
+        console.warn(`O slug "${candidateSlug}" já pertence a outro artigo. Mantendo slug original "${originalSlug}".`);
+        if (originalSlug) {
+          cleanPayload.slug = originalSlug;
+        }
+      } else {
+        cleanPayload.slug = candidateSlug;
+      }
+    } else if (originalSlug) {
+      cleanPayload.slug = originalSlug;
+    }
+  } else if (originalSlug) {
+    // Se o slug não foi explicitamente alterado, preserva o slug original
+    cleanPayload.slug = originalSlug;
+  }
+
   if (payload.category !== undefined) cleanPayload.category = payload.category;
   if (payload.publication_type !== undefined) cleanPayload.publication_type = payload.publication_type;
   if (payload.excerpt !== undefined) cleanPayload.excerpt = payload.excerpt.trim();
@@ -397,16 +533,41 @@ export async function updateArticle(
   delete cleanPayload.authors;
   delete cleanPayload.translator;
 
-  // 3. Atualizar no Supabase se configurado
+  // 4. Executa exclusivamente .update(cleanPayload).eq('id', id).select('*, authors(*)')
   if (isSupabaseConfigured && supabase) {
     await ensureConselhoEditorialInSupabase();
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('articles')
       .update(cleanPayload)
       .eq('id', id)
       .select('*, authors(*)')
       .maybeSingle();
+
+    // Tratamento de segurança contra erro 23505 no update
+    if (
+      error &&
+      (error.code === '23505' ||
+        error.message?.includes('articles_slug_key') ||
+        error.message?.includes('duplicate key value'))
+    ) {
+      console.warn('Conflito de slug no UPDATE. Revertendo para slug original ou gerando sufixo único...');
+      if (originalSlug && cleanPayload.slug !== originalSlug) {
+        cleanPayload.slug = originalSlug;
+      } else {
+        cleanPayload.slug = `${cleanPayload.slug || 'artigo'}-${Date.now().toString().slice(-4)}`;
+      }
+
+      const retryUpdate = await supabase
+        .from('articles')
+        .update(cleanPayload)
+        .eq('id', id)
+        .select('*, authors(*)')
+        .maybeSingle();
+
+      data = retryUpdate.data;
+      error = retryUpdate.error;
+    }
 
     if (error) {
       console.error('Erro retornado pelo Supabase na atualização:', error);
@@ -429,10 +590,13 @@ export async function updateArticle(
 
     // Revalida rotas imediatamente
     revalidateEditorialPaths(normalized.slug);
+    if (originalSlug && originalSlug !== normalized.slug) {
+      revalidateEditorialPaths(originalSlug);
+    }
     return normalized;
   }
 
-  // 4. Persistir no armazenamento local se não estiver no Supabase ou Supabase offline
+  // 5. Persistir no armazenamento local se Supabase offline
   const current = ensureLocalStore();
   const existingIndex = current.findIndex((a) => a.id === id);
 
@@ -452,8 +616,27 @@ export async function updateArticle(
 
   // Revalida rotas
   revalidateEditorialPaths(updatedArticle.slug);
+  if (originalSlug && originalSlug !== updatedArticle.slug) {
+    revalidateEditorialPaths(originalSlug);
+  }
 
   return attachAuthor(updatedArticle, authors);
+}
+
+/**
+ * Função de persistência segura para /admin.
+ * Separa rigorosamente criação (INSERT) de edição (UPDATE).
+ */
+export async function saveArticle(
+  payload: Partial<Article> & { title: string; content: string }
+): Promise<Article> {
+  if (payload.id && isValidUuid(payload.id)) {
+    const existing = await getArticleById(payload.id);
+    if (existing) {
+      return updateArticle(payload.id, payload);
+    }
+  }
+  return createArticle(payload as any);
 }
 
 /**
