@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getArticleById, updateArticle, deleteArticle } from '@/lib/serverArticles';
+import { isValidUuid } from '@/lib/uuid';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isValidUuid(id)) {
+      return NextResponse.json(
+        { error: 'Artigo não encontrado.' },
+        { status: 404 }
+      );
+    }
+
     const article = await getArticleById(id);
 
     if (!article) {
@@ -33,6 +41,13 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isValidUuid(id)) {
+      return NextResponse.json(
+        { error: 'Este item é um exemplo local e não existe no banco de dados' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const updated = await updateArticle(id, body);
     return NextResponse.json(updated);
@@ -48,6 +63,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isValidUuid(id)) {
+      return NextResponse.json(
+        { error: 'Este item é um exemplo local e não existe no banco de dados' },
+        { status: 400 }
+      );
+    }
+
     await deleteArticle(id);
     return NextResponse.json({ success: true, message: 'Artigo excluído com sucesso.' });
   } catch (err: unknown) {

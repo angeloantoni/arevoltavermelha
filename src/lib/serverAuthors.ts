@@ -189,6 +189,54 @@ export async function getAllAuthors(): Promise<Author[]> {
 }
 
 /**
+ * Obtém um autor pelo slug diretamente do Supabase ou do armazenamento local.
+ */
+export async function getAuthorBySlug(slug: string): Promise<Author | undefined> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('authors')
+        .select('*')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as Author;
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar autor por slug no Supabase:', err);
+    }
+  }
+
+  const authors = ensureLocalAuthorsStore();
+  return authors.find((a) => a.slug === slug);
+}
+
+/**
+ * Obtém um autor por ID UUID.
+ */
+export async function getAuthorById(id: string): Promise<Author | undefined> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('authors')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as Author;
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar autor por ID no Supabase:', err);
+    }
+  }
+
+  const authors = ensureLocalAuthorsStore();
+  return authors.find((a) => a.id === id);
+}
+
+/**
  * Criação de autor no banco com ID UUID gerado pelo PostgreSQL ou crypto.randomUUID().
  */
 export async function createAuthor(payload: {

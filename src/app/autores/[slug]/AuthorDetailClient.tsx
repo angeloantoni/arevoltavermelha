@@ -5,17 +5,18 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Author, Article } from '@/lib/types';
 import { getStoredAuthors } from '@/lib/authorStore';
-import { getArticles } from '@/lib/data';
 import { ArrowLeft, Clock, ArrowRight, BookOpen } from 'lucide-react';
 
 interface AuthorDetailClientProps {
   initialAuthor?: Author;
   slug: string;
+  initialArticles?: Article[];
 }
 
 export default function AuthorDetailClient({
   initialAuthor,
   slug,
+  initialArticles = [],
 }: AuthorDetailClientProps) {
   const [author, setAuthor] = useState<Author | undefined>(initialAuthor);
   const [isReady, setIsReady] = useState(!!initialAuthor);
@@ -55,10 +56,7 @@ export default function AuthorDetailClient({
     );
   }
 
-  const allArticles = getArticles();
-  const articles: Article[] = allArticles.filter(
-    (a) => a.author_id === author.id || a.author?.slug === author.slug
-  );
+  const articles: Article[] = initialArticles;
 
   return (
     <div className="w-full bg-rev-white min-h-screen py-12">

@@ -17,8 +17,8 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
 
 /**
- * Garante a existência do arquivo local de persistência inicializado com os dados do acervo.
- * Também normaliza IDs legados para UUIDs válidos.
+ * Garante a existência do arquivo local de persistência.
+ * Retorna exclusivamente registros com UUID válido, sem injetar dados fictícios/mockados.
  */
 function ensureLocalStore(): Article[] {
   try {
@@ -27,48 +27,20 @@ function ensureLocalStore(): Article[] {
     }
 
     if (!fs.existsSync(ARTICLES_FILE)) {
-      const seeded = INITIAL_ARTICLES.map((art, idx) => ({
-        ...art,
-        id: `00000000-0000-0000-0001-${String(idx + 1).padStart(12, '0')}`,
-        author_id: CONSELHO_EDITORIAL_UUID,
-      }));
-      fs.writeFileSync(ARTICLES_FILE, JSON.stringify(seeded, null, 2), 'utf-8');
-      return seeded;
+      fs.writeFileSync(ARTICLES_FILE, '[]', 'utf-8');
+      return [];
     }
 
     const raw = fs.readFileSync(ARTICLES_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      let modified = false;
-      const validArticles = parsed.map((art: Article, idx: number) => {
-        let changed = false;
-        let id = art.id;
-        let author_id = art.author_id;
-
-        if (!isValidUuid(id)) {
-          id = `00000000-0000-0000-0001-${String(idx + 1).padStart(12, '0')}`;
-          changed = true;
-        }
-
-        if (!isValidUuid(author_id)) {
-          author_id = CONSELHO_EDITORIAL_UUID;
-          changed = true;
-        }
-
-        if (changed) modified = true;
-        return { ...art, id, author_id };
-      });
-
-      if (modified) {
-        fs.writeFileSync(ARTICLES_FILE, JSON.stringify(validArticles, null, 2), 'utf-8');
-      }
-      return validArticles;
+      return parsed.filter((art: any) => isValidUuid(art.id));
     }
 
-    return INITIAL_ARTICLES;
+    return [];
   } catch (err) {
     console.error('Erro ao acessar armazenamento local de artigos:', err);
-    return INITIAL_ARTICLES;
+    return [];
   }
 }
 
@@ -157,11 +129,12 @@ export function revalidateEditorialPaths(slug?: string): void {
 
 /**
  * Obtém todos os artigos ordenados por data de criação/publicação decrescente.
+ * No ambiente de produção/Supabase, carrega exclusivamente os dados reais do banco.
  */
 export async function getAllArticles(): Promise<Article[]> {
   const authors = await getServerAuthors();
 
-  // 1. Tentar consulta ao Supabase se configurado
+  // 1. Consulta exclusiva ao Supabase se configurado
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -169,18 +142,19 @@ export async function getAllArticles(): Promise<Article[]> {
         .select('*, authors(*)')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return data.map((row: any) => normalizeArticleRow(row, authors));
-      }
       if (error) {
-        console.warn('Aviso: Supabase retornou erro na listagem de artigos, utilizando armazenamento local:', error.message);
+        console.error('Erro na consulta de artigos no Supabase:', error.message);
+        return [];
       }
+
+      return (data || []).map((row: any) => normalizeArticleRow(row, authors));
     } catch (err) {
-      console.warn('Falha de conexão com o Supabase ao listar artigos:', err);
+      console.error('Falha de conexão com o Supabase ao listar artigos:', err);
+      return [];
     }
   }
 
-  // 2. Consulta ao armazenamento local persistente (data/articles.json)
+  // 2. Consulta ao armazenamento local persistente (apenas desenvolvimento offline sem Supabase)
   const localArticles = ensureLocalStore();
   return [...localArticles]
     .sort(
@@ -208,8 +182,10 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
       if (!error && data) {
         return normalizeArticleRow(data, authors);
       }
+      return undefined;
     } catch (err) {
-      console.warn(`Erro ao consultar artigo pelo slug "${slug}" no Supabase:`, err);
+      console.error(`Erro ao consultar artigo pelo slug "${slug}" no Supabase:`, err);
+      return undefined;
     }
   }
 
@@ -222,6 +198,10 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
  * Obtém um artigo pelo ID único.
  */
 export async function getArticleById(id: string): Promise<Article | undefined> {
+  if (!isValidUuid(id)) {
+    return undefined;
+  }
+
   const authors = await getServerAuthors();
 
   if (isSupabaseConfigured && supabase) {
@@ -235,8 +215,10 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
       if (!error && data) {
         return normalizeArticleRow(data, authors);
       }
+      return undefined;
     } catch (err) {
-      console.warn(`Erro ao consultar artigo "${id}" no Supabase:`, err);
+      console.error(`Erro ao consultar artigo "${id}" no Supabase:`, err);
+      return undefined;
     }
   }
 
@@ -361,45 +343,67 @@ export async function createArticle(
 
 /**
  * Atualização de artigo existente (UPDATE).
+ * Valida o UUID e sanitiza rigorosamente os campos enviados para a tabela do Supabase.
  */
 export async function updateArticle(
   id: string,
   payload: Partial<Article>
 ): Promise<Article> {
+  // 1. Validação estrita do UUID primário
+  if (!isValidUuid(id)) {
+    throw new Error('Este item é um exemplo local e não existe no banco de dados');
+  }
+
   const authors = await getServerAuthors();
   const cleanTags = Array.isArray(payload.tags)
     ? Array.from(new Set(payload.tags.map((t) => t.trim().toUpperCase()).filter(Boolean)))
     : undefined;
 
-  // 1. Tentar atualizar no Supabase se configurado
+  // 2. Sanitização estrita do payload (somente colunas válidas da tabela articles, sem objetos de join)
+  const cleanPayload: Record<string, any> = {};
+  if (payload.title !== undefined) cleanPayload.title = payload.title.trim();
+  if (payload.subtitle !== undefined) cleanPayload.subtitle = payload.subtitle?.trim() || '';
+  if (payload.slug !== undefined) cleanPayload.slug = payload.slug.trim();
+  if (payload.category !== undefined) cleanPayload.category = payload.category;
+  if (payload.publication_type !== undefined) cleanPayload.publication_type = payload.publication_type;
+  if (payload.excerpt !== undefined) cleanPayload.excerpt = payload.excerpt.trim();
+  if (payload.content !== undefined) {
+    cleanPayload.content = payload.content;
+    cleanPayload.reading_time_minutes = calculateReadingTime(payload.content).minutes;
+  }
+  if (payload.cover_image_url !== undefined) cleanPayload.cover_image_url = payload.cover_image_url.trim();
+  if (payload.cover_caption !== undefined) cleanPayload.cover_caption = payload.cover_caption?.trim() || '';
+  if (payload.is_hero_featured !== undefined) cleanPayload.is_hero_featured = Boolean(payload.is_hero_featured);
+  if (payload.hero_order !== undefined) cleanPayload.hero_order = Number(payload.hero_order) || 0;
+  if (payload.author_id !== undefined) {
+    cleanPayload.author_id = ensureValidUuid(payload.author_id, CONSELHO_EDITORIAL_UUID);
+  }
+  if (payload.translator_id !== undefined) {
+    cleanPayload.translator_id =
+      payload.translator_id && isValidUuid(payload.translator_id)
+        ? payload.translator_id
+        : null;
+  }
+  if (payload.original_title !== undefined) cleanPayload.original_title = payload.original_title;
+  if (payload.original_year !== undefined) cleanPayload.original_year = payload.original_year;
+  if (payload.original_source !== undefined) cleanPayload.original_source = payload.original_source;
+  if (payload.status !== undefined) cleanPayload.status = payload.status;
+  if (cleanTags !== undefined) cleanPayload.tags = cleanTags;
+  if (payload.published_at !== undefined) cleanPayload.published_at = payload.published_at;
+
+  // Remoção explícita de propriedades indesejadas
+  delete cleanPayload.id;
+  delete cleanPayload.author;
+  delete cleanPayload.authors;
+  delete cleanPayload.translator;
+
+  // 3. Atualizar no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
     await ensureConselhoEditorialInSupabase();
 
-    const dbPayload: Record<string, any> = {};
-    if (payload.title !== undefined) dbPayload.title = payload.title.trim();
-    if (payload.subtitle !== undefined) dbPayload.subtitle = payload.subtitle?.trim() || '';
-    if (payload.slug !== undefined) dbPayload.slug = payload.slug.trim();
-    if (payload.category !== undefined) dbPayload.category = payload.category;
-    if (payload.publication_type !== undefined) dbPayload.publication_type = payload.publication_type;
-    if (payload.excerpt !== undefined) dbPayload.excerpt = payload.excerpt.trim();
-    if (payload.content !== undefined) {
-      dbPayload.content = payload.content;
-      dbPayload.reading_time_minutes = calculateReadingTime(payload.content).minutes;
-    }
-    if (payload.cover_image_url !== undefined) dbPayload.cover_image_url = payload.cover_image_url.trim();
-    if (payload.cover_caption !== undefined) dbPayload.cover_caption = payload.cover_caption?.trim() || '';
-    if (payload.author_id !== undefined) {
-      dbPayload.author_id = ensureValidUuid(payload.author_id, CONSELHO_EDITORIAL_UUID);
-    }
-    if (payload.translator_id !== undefined) {
-      dbPayload.translator_id = payload.translator_id && isValidUuid(payload.translator_id) ? payload.translator_id : null;
-    }
-    if (payload.status !== undefined) dbPayload.status = payload.status;
-    if (cleanTags !== undefined) dbPayload.tags = cleanTags;
-
     const { data, error } = await supabase
       .from('articles')
-      .update(dbPayload)
+      .update(cleanPayload)
       .eq('id', id)
       .select('*, authors(*)')
       .maybeSingle();
@@ -409,24 +413,26 @@ export async function updateArticle(
       throw new Error(`Falha no banco Supabase: ${error.message}`);
     }
 
-    if (data) {
-      const normalized = normalizeArticleRow(data, authors);
-
-      // Sincroniza também no armazenamento local caso o artigo exista lá
-      const current = ensureLocalStore();
-      const existingIndex = current.findIndex((a) => a.id === id);
-      if (existingIndex >= 0) {
-        current[existingIndex] = { ...current[existingIndex], ...normalized };
-        saveLocalStore(current);
-      }
-
-      // Revalida rotas imediatamente
-      revalidateEditorialPaths(normalized.slug);
-      return normalized;
+    if (!data) {
+      throw new Error(`Artigo com ID "${id}" não foi encontrado para atualização.`);
     }
+
+    const normalized = normalizeArticleRow(data, authors);
+
+    // Sincroniza também no armazenamento local caso o artigo exista lá
+    const current = ensureLocalStore();
+    const existingIndex = current.findIndex((a) => a.id === id);
+    if (existingIndex >= 0) {
+      current[existingIndex] = { ...current[existingIndex], ...normalized };
+      saveLocalStore(current);
+    }
+
+    // Revalida rotas imediatamente
+    revalidateEditorialPaths(normalized.slug);
+    return normalized;
   }
 
-  // 2. Persistir no armazenamento local se não estiver no Supabase ou Supabase offline
+  // 4. Persistir no armazenamento local se não estiver no Supabase ou Supabase offline
   const current = ensureLocalStore();
   const existingIndex = current.findIndex((a) => a.id === id);
 
@@ -435,36 +441,16 @@ export async function updateArticle(
   }
 
   const existing = current[existingIndex];
-  const newContent = payload.content !== undefined ? payload.content : existing.content;
-  const { minutes: calculatedTime } = calculateReadingTime(newContent);
-
-  const validAuthorId = payload.author_id
-    ? ensureValidUuid(payload.author_id, existing.author_id || CONSELHO_EDITORIAL_UUID)
-    : existing.author_id;
-
-  const validTranslatorId =
-    payload.translator_id !== undefined
-      ? payload.translator_id && isValidUuid(payload.translator_id)
-        ? payload.translator_id
-        : null
-      : existing.translator_id || null;
-
   const updatedArticle: Article = {
     ...existing,
-    ...payload,
+    ...cleanPayload,
     id: existing.id,
-    author_id: validAuthorId,
-    translator_id: validTranslatorId || undefined,
-    reading_time_minutes: calculatedTime,
-    tags: cleanTags !== undefined ? cleanTags : (existing.tags || []),
-    created_at: existing.created_at,
-    published_at: payload.published_at || existing.published_at,
   };
 
   current[existingIndex] = updatedArticle;
   saveLocalStore(current);
 
-  // 3. Revalidar rotas
+  // Revalida rotas
   revalidateEditorialPaths(updatedArticle.slug);
 
   return attachAuthor(updatedArticle, authors);
@@ -474,9 +460,14 @@ export async function updateArticle(
  * Exclusão definitiva de artigo (DELETE).
  */
 export async function deleteArticle(id: string): Promise<boolean> {
+  // 1. Validação estrita do UUID primário
+  if (!isValidUuid(id)) {
+    throw new Error('Este item é um exemplo local e não existe no banco de dados');
+  }
+
   let deletedSlug: string | undefined;
 
-  // 1. Tentar excluir no Supabase se configurado
+  // 2. Tentar excluir no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
       .from('articles')
@@ -495,7 +486,7 @@ export async function deleteArticle(id: string): Promise<boolean> {
     }
   }
 
-  // 2. Remover do armazenamento local
+  // 3. Remover do armazenamento local
   const current = ensureLocalStore();
   const existing = current.find((a) => a.id === id);
 
@@ -507,7 +498,7 @@ export async function deleteArticle(id: string): Promise<boolean> {
     throw new Error(`Artigo com ID "${id}" não encontrado.`);
   }
 
-  // 3. Revalidar rotas
+  // 4. Revalidar rotas
   revalidateEditorialPaths(deletedSlug);
 
   return true;

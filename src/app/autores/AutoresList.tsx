@@ -1,19 +1,33 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuthors } from '@/lib/authorStore';
-import { getArticlesByAuthor } from '@/lib/data';
+import { Article } from '@/lib/types';
 import { BookOpen, ArrowRight } from 'lucide-react';
 
 export default function AutoresList() {
   const { authors } = useAuthors();
+  const [articles, setArticles] = useState<Article[]>([]);
+
+  useEffect(() => {
+    fetch('/api/articles')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setArticles(data);
+        }
+      })
+      .catch((err) => console.error('Erro ao carregar artigos dos autores:', err));
+  }, []);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {authors.map((author) => {
-        const authorArticles = getArticlesByAuthor(author.slug);
+        const authorArticles = articles.filter(
+          (a) => a.author_id === author.id || a.author?.slug === author.slug
+        );
 
         return (
           <div

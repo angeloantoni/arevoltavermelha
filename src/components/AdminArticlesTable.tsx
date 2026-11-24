@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink, Edit2, Trash2, Search, Loader2 } from 'lucide-react';
 import { Article } from '@/lib/types';
+import { isValidUuid } from '@/lib/uuid';
 
 interface AdminArticlesTableProps {
   initialArticles: Article[];
@@ -27,6 +28,11 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
   });
 
   const handleDelete = async (art: Article) => {
+    if (!isValidUuid(art.id)) {
+      alert('Aviso: Este item é um exemplo local e não existe no banco de dados.');
+      return;
+    }
+
     const confirmed = window.confirm(
       `ATENÇÃO: Confirma a exclusão definitiva do artigo do acervo?\n\n"${art.title}"\n(slug: /artigo/${art.slug})\n\nEsta ação removerá o registro do banco de dados e atualizará a capa imediatamente.`
     );
@@ -167,14 +173,30 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
                         </Link>
 
                         {/* Botão Editar */}
-                        <Link
-                          href={`/admin/editar/${art.id}`}
-                          className="btn-brutalist !py-1 !px-2 !text-[11px] inline-flex items-center gap-1 !bg-rev-black !text-white hover:!bg-rev-red"
-                          title="Editar metadados e conteúdo em Markdown"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>EDITAR</span>
-                        </Link>
+                        {isValidUuid(art.id) ? (
+                          <Link
+                            href={`/admin/editar/${art.id}`}
+                            className="btn-brutalist !py-1 !px-2 !text-[11px] inline-flex items-center gap-1 !bg-rev-black !text-white hover:!bg-rev-red"
+                            title="Editar metadados e conteúdo em Markdown"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>EDITAR</span>
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              alert(
+                                'Aviso: Este item é um exemplo local e não existe no banco de dados.'
+                              )
+                            }
+                            className="btn-brutalist !py-1 !px-2 !text-[11px] inline-flex items-center gap-1 !bg-neutral-200 !text-neutral-500 cursor-not-allowed border-neutral-400"
+                            title="Item de exemplo local (não editável)"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>EDITAR</span>
+                          </button>
+                        )}
 
                         {/* Botão Excluir */}
                         <button
