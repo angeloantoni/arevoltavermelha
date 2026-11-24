@@ -112,5 +112,17 @@ GRANT SELECT ON TABLE authors, articles TO anon, authenticated;
 GRANT ALL ON TABLE authors, articles TO authenticated;
 GRANT ALL ON TABLE authors, articles TO service_role;
 GRANT ALL ON TABLE authors, articles TO postgres;
+-- 4. REGISTRO INSTITUCIONAL PADRÃO (CONSELHO EDITORIAL)
+INSERT INTO authors (id, name, slug, role, bio, avatar_url)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Conselho Editorial',
+  'conselho-editorial',
+  'Direção Política e Editorial',
+  'Órgão de direção política e teórica da revista A Revolta Vermelha, responsável pelas posições editoriais e manifestos.',
+  '/logo.webp'
+)
+ON CONFLICT (id) DO NOTHING;
+
 
 

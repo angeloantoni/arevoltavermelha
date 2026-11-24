@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock } from 'lucide-react';
-import { ArticleCategory, PublicationType, Article } from '@/lib/types';
-import { useAuthors } from '@/lib/authorStore';
+import { ArticleCategory, PublicationType, Article, Author } from '@/lib/types';
 import { calculateReadingTime } from '@/lib/readingTime';
+import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from '@/lib/uuid';
 
 const CATEGORIES: ArticleCategory[] = [
   'EDITORIAL',
@@ -28,7 +28,7 @@ interface ArticleFormProps {
 
 export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) {
   const router = useRouter();
-  const { authors } = useAuthors();
+  const [authors, setAuthors] = useState<Author[]>([]);
 
   const [title, setTitle] = useState(initialArticle?.title || '');
   const [subtitle, setSubtitle] = useState(initialArticle?.subtitle || '');
@@ -40,13 +40,29 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
     initialArticle?.publication_type || 'ARTIGO EDITORIAL'
   );
 
-  const [authorId, setAuthorId] = useState(initialArticle?.author_id || '');
+  const [authorId, setAuthorId] = useState(
+    initialArticle?.author_id && isValidUuid(initialArticle.author_id)
+      ? initialArticle.author_id
+      : CONSELHO_EDITORIAL_UUID
+  );
 
   useEffect(() => {
-    if (!authorId && authors.length > 0) {
-      setAuthorId(authors[0].id);
-    }
-  }, [authors, authorId]);
+    fetch('/api/authors')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAuthors(data);
+          setAuthorId((prev) => {
+            if (prev && isValidUuid(prev)) return prev;
+            if (initialArticle?.author_id && isValidUuid(initialArticle.author_id)) {
+              return initialArticle.author_id;
+            }
+            return data[0]?.id || CONSELHO_EDITORIAL_UUID;
+          });
+        }
+      })
+      .catch((err) => console.error('Erro ao carregar autores:', err));
+  }, [initialArticle]);
 
   const [excerpt, setExcerpt] = useState(initialArticle?.excerpt || '');
   const [coverImageUrl, setCoverImageUrl] = useState(
@@ -102,7 +118,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
         slug: slug.trim(),
         category,
         publication_type: publicationType,
-        author_id: authorId || (authors[0]?.id ?? 'auth-editorial'),
+        author_id: ensureValidUuid(authorId, CONSELHO_EDITORIAL_UUID),
         cover_image_url: coverImageUrl.trim(),
         cover_caption: coverCaption.trim(),
         excerpt: excerpt.trim(),
@@ -304,11 +320,17 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
                 onChange={(e) => setAuthorId(e.target.value)}
                 className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs bg-white focus:ring-2 focus:ring-rev-red outline-none"
               >
-                {authors.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.role})
+                {authors.length === 0 ? (
+                  <option value={CONSELHO_EDITORIAL_UUID}>
+                    Conselho Editorial (Direção Política e Editorial)
                   </option>
-                ))}
+                ) : (
+                  authors.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.role})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 

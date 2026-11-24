@@ -1,16 +1,24 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { revalidatePath } from 'next/cache';
-import { Article } from './types';
-import { INITIAL_ARTICLES, AUTHORS } from './data';
+import { Article, Author } from './types';
+import { INITIAL_ARTICLES } from './data';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { calculateReadingTime } from './readingTime';
+import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from './uuid';
+import {
+  ensureConselhoEditorialInSupabase,
+  getAllAuthors as getServerAuthors,
+  DEFAULT_AUTHORS_WITH_UUIDS,
+} from './serverAuthors';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json');
 
 /**
  * Garante a existência do arquivo local de persistência inicializado com os dados do acervo.
+ * Também normaliza IDs legados para UUIDs válidos.
  */
 function ensureLocalStore(): Article[] {
   try {
@@ -19,17 +27,44 @@ function ensureLocalStore(): Article[] {
     }
 
     if (!fs.existsSync(ARTICLES_FILE)) {
-      fs.writeFileSync(ARTICLES_FILE, JSON.stringify(INITIAL_ARTICLES, null, 2), 'utf-8');
-      return INITIAL_ARTICLES;
+      const seeded = INITIAL_ARTICLES.map((art, idx) => ({
+        ...art,
+        id: `00000000-0000-0000-0001-${String(idx + 1).padStart(12, '0')}`,
+        author_id: CONSELHO_EDITORIAL_UUID,
+      }));
+      fs.writeFileSync(ARTICLES_FILE, JSON.stringify(seeded, null, 2), 'utf-8');
+      return seeded;
     }
 
     const raw = fs.readFileSync(ARTICLES_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      let modified = false;
+      const validArticles = parsed.map((art: Article, idx: number) => {
+        let changed = false;
+        let id = art.id;
+        let author_id = art.author_id;
+
+        if (!isValidUuid(id)) {
+          id = `00000000-0000-0000-0001-${String(idx + 1).padStart(12, '0')}`;
+          changed = true;
+        }
+
+        if (!isValidUuid(author_id)) {
+          author_id = CONSELHO_EDITORIAL_UUID;
+          changed = true;
+        }
+
+        if (changed) modified = true;
+        return { ...art, id, author_id };
+      });
+
+      if (modified) {
+        fs.writeFileSync(ARTICLES_FILE, JSON.stringify(validArticles, null, 2), 'utf-8');
+      }
+      return validArticles;
     }
 
-    fs.writeFileSync(ARTICLES_FILE, JSON.stringify(INITIAL_ARTICLES, null, 2), 'utf-8');
     return INITIAL_ARTICLES;
   } catch (err) {
     console.error('Erro ao acessar armazenamento local de artigos:', err);
@@ -52,12 +87,13 @@ function saveLocalStore(articles: Article[]): void {
 }
 
 /**
- * Anexa o objeto de autor correspondente ao artigo.
+ * Anexa o objeto de autor correspondente ao artigo com busca nos autores conhecidos.
  */
-function attachAuthor(art: Article): Article {
-  const author = AUTHORS.find((a) => a.id === art.author_id) || AUTHORS[0];
+function attachAuthor(art: Article, authorsList?: Author[]): Article {
+  const pool = authorsList && authorsList.length > 0 ? authorsList : DEFAULT_AUTHORS_WITH_UUIDS;
+  const author = pool.find((a) => a.id === art.author_id) || pool[0];
   const translator = art.translator_id
-    ? AUTHORS.find((a) => a.id === art.translator_id)
+    ? pool.find((a) => a.id === art.translator_id)
     : undefined;
 
   return {
@@ -88,6 +124,8 @@ export function revalidateEditorialPaths(slug?: string): void {
  * Obtém todos os artigos ordenados por data de criação/publicação decrescente.
  */
 export async function getAllArticles(): Promise<Article[]> {
+  const authors = await getServerAuthors();
+
   // 1. Tentar consulta ao Supabase se configurado
   if (isSupabaseConfigured && supabase) {
     try {
@@ -97,7 +135,7 @@ export async function getAllArticles(): Promise<Article[]> {
         .order('created_at', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        return (data as Article[]).map(attachAuthor);
+        return (data as Article[]).map((art) => attachAuthor(art, authors));
       }
       if (error) {
         console.warn('Aviso: Supabase retornou erro na listagem de artigos, utilizando armazenamento local:', error.message);
@@ -115,7 +153,7 @@ export async function getAllArticles(): Promise<Article[]> {
         new Date(b.created_at || b.published_at).getTime() -
         new Date(a.created_at || a.published_at).getTime()
     )
-    .map(attachAuthor);
+    .map((art) => attachAuthor(art, authors));
 }
 
 /**
@@ -135,10 +173,11 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
 }
 
 /**
- * Criação e publicação de novo artigo com validação e persistência real.
+ * Criação e publicação de novo artigo com validação de UUID e persistência real.
  */
 export async function createArticle(
   payload: Omit<Article, 'id' | 'created_at' | 'published_at' | 'reading_time_minutes'> & {
+    id?: string;
     reading_time_minutes?: number;
   }
 ): Promise<Article> {
@@ -160,7 +199,18 @@ export async function createArticle(
 
   const now = new Date().toISOString();
   const { minutes: calculatedTime } = calculateReadingTime(payload.content);
-  const newId = `art-${Date.now()}`;
+
+  // Garante ID UUID válido
+  const newId = payload.id && isValidUuid(payload.id) ? payload.id : crypto.randomUUID();
+
+  // Garante UUID válido para autor (padrão: Conselho Editorial)
+  const validAuthorId = ensureValidUuid(payload.author_id, CONSELHO_EDITORIAL_UUID);
+
+  // Garante UUID válido para tradutor ou null
+  const validTranslatorId =
+    payload.translator_id && isValidUuid(payload.translator_id)
+      ? payload.translator_id
+      : null;
 
   const newArticle: Article = {
     id: newId,
@@ -175,10 +225,11 @@ export async function createArticle(
       payload.cover_image_url ||
       'https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1200&auto=format&fit=crop',
     cover_caption: payload.cover_caption || '',
-    is_hero_featured: true, // Novos artigos entram como destaque recente
+    is_hero_featured: true,
     hero_order: 1,
     reading_time_minutes: calculatedTime,
-    author_id: payload.author_id || AUTHORS[0].id,
+    author_id: validAuthorId,
+    translator_id: validTranslatorId || undefined,
     status: payload.status || 'published',
     published_at: now,
     created_at: now,
@@ -186,6 +237,9 @@ export async function createArticle(
 
   // 1. Tentar salvar no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
+    // Garante que o autor com esse UUID existe na tabela authors do Supabase
+    await ensureConselhoEditorialInSupabase();
+
     const { error } = await supabase.from('articles').insert({
       id: newArticle.id,
       title: newArticle.title,
@@ -200,7 +254,8 @@ export async function createArticle(
       is_hero_featured: newArticle.is_hero_featured,
       hero_order: newArticle.hero_order,
       reading_time_minutes: newArticle.reading_time_minutes,
-      author_id: newArticle.author_id,
+      author_id: validAuthorId,
+      translator_id: validTranslatorId,
       status: newArticle.status,
       published_at: newArticle.published_at,
       created_at: newArticle.created_at,
@@ -220,7 +275,8 @@ export async function createArticle(
   // 3. Revalidar rotas
   revalidateEditorialPaths(newArticle.slug);
 
-  return attachAuthor(newArticle);
+  const authors = await getServerAuthors();
+  return attachAuthor(newArticle, authors);
 }
 
 /**
@@ -241,10 +297,23 @@ export async function updateArticle(
   const newContent = payload.content !== undefined ? payload.content : existing.content;
   const { minutes: calculatedTime } = calculateReadingTime(newContent);
 
+  const validAuthorId = payload.author_id
+    ? ensureValidUuid(payload.author_id, existing.author_id || CONSELHO_EDITORIAL_UUID)
+    : existing.author_id;
+
+  const validTranslatorId =
+    payload.translator_id !== undefined
+      ? payload.translator_id && isValidUuid(payload.translator_id)
+        ? payload.translator_id
+        : null
+      : existing.translator_id || null;
+
   const updatedArticle: Article = {
     ...existing,
     ...payload,
     id: existing.id,
+    author_id: validAuthorId,
+    translator_id: validTranslatorId || undefined,
     reading_time_minutes: calculatedTime,
     created_at: existing.created_at,
     published_at: payload.published_at || existing.published_at,
@@ -252,6 +321,8 @@ export async function updateArticle(
 
   // 1. Tentar atualizar no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
+    await ensureConselhoEditorialInSupabase();
+
     const { error } = await supabase
       .from('articles')
       .update({
@@ -265,7 +336,8 @@ export async function updateArticle(
         cover_image_url: updatedArticle.cover_image_url,
         cover_caption: updatedArticle.cover_caption,
         reading_time_minutes: updatedArticle.reading_time_minutes,
-        author_id: updatedArticle.author_id,
+        author_id: validAuthorId,
+        translator_id: validTranslatorId,
         status: updatedArticle.status,
       })
       .eq('id', id);
@@ -283,7 +355,8 @@ export async function updateArticle(
   // 3. Revalidar rotas
   revalidateEditorialPaths(updatedArticle.slug);
 
-  return attachAuthor(updatedArticle);
+  const authors = await getServerAuthors();
+  return attachAuthor(updatedArticle, authors);
 }
 
 /**

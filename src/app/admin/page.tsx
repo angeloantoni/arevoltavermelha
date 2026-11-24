@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { getAllArticles } from '@/lib/serverArticles';
-import { Plus, CheckCircle, FileText, Users } from 'lucide-react';
+import { Plus, CheckCircle, FileText, Users, BookOpen } from 'lucide-react';
 import LogoutButton from './LogoutButton';
 import AdminArticlesTable from '@/components/AdminArticlesTable';
 
@@ -51,10 +51,10 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Abas de Navegação do CMS */}
-        <div className="flex items-center gap-2 border-b border-rev-black mb-8">
+        <div className="flex items-center gap-2 border-b border-rev-black mb-8 overflow-x-auto">
           <Link
             href="/admin"
-            className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-rev-red border-b-2 border-rev-red flex items-center gap-2 bg-neutral-100 transition-all"
+            className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-rev-red border-b-2 border-rev-red flex items-center gap-2 bg-neutral-100 transition-all whitespace-nowrap"
           >
             <FileText className="w-4 h-4 text-rev-red" />
             <span>GESTÃO DE ARTIGOS</span>
@@ -62,10 +62,18 @@ export default async function AdminDashboardPage() {
 
           <Link
             href="/admin/autores"
-            className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-600 hover:text-rev-black flex items-center gap-2 border-b-2 border-transparent transition-all"
+            className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-600 hover:text-rev-black flex items-center gap-2 border-b-2 border-transparent transition-all whitespace-nowrap"
           >
             <Users className="w-4 h-4" />
             <span>GESTÃO DE AUTORES & TRADUTORES</span>
+          </Link>
+
+          <Link
+            href="/admin/expediente"
+            className="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-600 hover:text-rev-black flex items-center gap-2 border-b-2 border-transparent transition-all whitespace-nowrap"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>GESTÃO DO EXPEDIENTE</span>
           </Link>
         </div>
 

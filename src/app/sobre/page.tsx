@@ -2,6 +2,10 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Flame, ShieldCheck, Scale, Compass } from 'lucide-react';
+import { getExpediente } from '@/lib/serverExpediente';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata = {
   title: 'Manifesto Editorial & Expediente — A Revolta Vermelha',
@@ -9,7 +13,8 @@ export const metadata = {
     'Linha editorial marxista-leninista, balanço histórico de 1935 sem dogmatismo e compromisso com a transformação concreta da realidade.',
 };
 
-export default function SobrePage() {
+export default async function SobrePage() {
+  const expediente = await getExpediente();
   return (
     <div className="w-full bg-rev-red text-white min-h-screen py-12 selection:bg-rev-black selection:text-white">
       <div className="max-w-[1050px] mx-auto px-4 sm:px-6">
@@ -205,27 +210,46 @@ export default function SobrePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs font-mono text-neutral-300 pt-2">
               <div>
                 <strong className="text-white block uppercase">DIREÇÃO POLÍTICA E EDITORIAL:</strong>
-                <span className="block mt-1">Conselho Editorial de A Revolta Vermelha</span>
-                <span className="text-[11px] text-neutral-400">Comitê Permanente — Natal / RN</span>
+                <span className="block mt-1 font-bold text-white">{expediente.direcao_politica}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.direcao_politica_desc}</span>
+              </div>
+
+              <div>
+                <strong className="text-white block uppercase">CONSELHO EDITORIAL:</strong>
+                <span className="block mt-1 font-bold text-white">{expediente.conselho_editorial}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.conselho_editorial_desc}</span>
               </div>
 
               <div>
                 <strong className="text-white block uppercase">EDIÇÃO DE ARTIGOS DE OPINIÃO:</strong>
-                <span className="block mt-1">Comissão de Debates & Teoria Política</span>
-                <span className="text-[11px] text-neutral-400">Revisão por pares militantes</span>
+                <span className="block mt-1 font-bold text-white">{expediente.artigos_opiniao}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.artigos_opiniao_desc}</span>
               </div>
 
               <div>
                 <strong className="text-white block uppercase">NÚCLEO DE TRADUÇÕES:</strong>
-                <span className="block mt-1">Coletivo de Línguas Estrangeiras & Fontes Históricas</span>
+                <span className="block mt-1 font-bold text-white">{expediente.traducoes}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.traducoes_desc}</span>
+              </div>
+
+              <div>
+                <strong className="text-white block uppercase">PESQUISA HISTÓRICA:</strong>
+                <span className="block mt-1 font-bold text-white">{expediente.pesquisa_historica}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.pesquisa_historica_desc}</span>
               </div>
 
               <div>
                 <strong className="text-white block uppercase">CONTATO PARA SUBMISSÕES:</strong>
-                <span className="text-rev-red font-bold block mt-1">contato@arevoltavermelha.org</span>
-                <span className="text-[11px] text-neutral-400">Aceitamos propostas em fluxo contínuo</span>
+                <span className="text-rev-red font-bold block mt-1">{expediente.contato_submissoes}</span>
+                <span className="text-[11px] text-neutral-400">{expediente.contato_submissoes_desc}</span>
               </div>
             </div>
+
+            {expediente.notas_finais && (
+              <div className="pt-3 border-t border-neutral-800 text-[11px] text-neutral-400 italic">
+                {expediente.notas_finais}
+              </div>
+            )}
 
             <div className="pt-6 border-t border-neutral-700 flex flex-wrap items-center justify-between gap-4">
               <Link
