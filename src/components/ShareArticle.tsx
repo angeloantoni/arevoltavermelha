@@ -76,36 +76,43 @@ export default function ShareArticle({ article }: ShareArticleProps) {
       console.warn('Fetch direto com CORS falhou, tentando rota de proxy interna:', err);
     }
 
-    // 2. Se falhar por bloqueio de CORS em host externo, usar a rota interna /api/image-proxy
+    // 2. Se falhar por bloqueio de CORS em host externo, usar a rota interna /api/proxy-image
     if (!blob && (url.startsWith('http://') || url.startsWith('https://'))) {
       try {
-        const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
         const proxyRes = await fetch(proxyUrl);
         if (proxyRes.ok) {
           blob = await proxyRes.blob();
         }
       } catch (proxyErr) {
-        console.warn('Proxy interno de imagem falhou:', proxyErr);
+        console.warn('Proxy interno de imagem (/api/proxy-image) falhou:', proxyErr);
       }
     }
 
-    // 3. Se obtivemos o Blob, criamos um objectUrl local limpo (sem restrições de CORS)
+    // 3. Se obtivemos o Blob, criamos um objectUrl local limpo e aguardamos a decodificação com img.decode()
     if (blob) {
       const objectUrl = URL.createObjectURL(blob);
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-          resolve({
-            img,
-            cleanup: () => URL.revokeObjectURL(objectUrl),
+      const img = new Image();
+      img.src = objectUrl;
+
+      try {
+        if (typeof img.decode === 'function') {
+          await img.decode();
+        } else {
+          await new Promise((resolve, reject) => {
+            (img as HTMLImageElement).onload = resolve;
+            (img as HTMLImageElement).onerror = reject;
           });
+        }
+
+        return {
+          img,
+          cleanup: () => URL.revokeObjectURL(objectUrl),
         };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('Falha ao decodificar imagem a partir do Blob'));
-        };
-        img.src = objectUrl;
-      });
+      } catch (decodeErr) {
+        URL.revokeObjectURL(objectUrl);
+        throw new Error(`Falha ao decodificar imagem via Blob: ${decodeErr}`);
+      }
     }
 
     // 4. Último recurso (para arquivos estáticos locais como /logo_horizontal.webp)
@@ -493,34 +500,81 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     }
 
     // DESENHAR FOTOGRAFIA DE CAPA
-    const coverUrl =
+    const rawCoverUrl =
       (article as any).cover_image ||
       (article as any).coverImage ||
+      (article as any).image_url ||
       (article as any).image ||
       article.cover_image_url;
 
+    const coverUrl = typeof rawCoverUrl === 'string' ? rawCoverUrl.trim() : '';
+
     let coverRendered = false;
     if (coverUrl) {
+      let objectUrl: string | null = null;
       try {
-        const { img: coverImg, cleanup: coverCleanup } = await loadImageSafely(coverUrl);
-        try {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(photoX, photoY, photoW, photoH);
-          ctx.clip();
-          ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
+        // Carregamento da capa via rota interna de proxy /api/proxy-image?url=...
+        const proxyUrl = coverUrl.startsWith('/') && !coverUrl.startsWith('//')
+          ? coverUrl
+          : `/api/proxy-image?url=${encodeURIComponent(coverUrl)}`;
 
-          // Ajuste proporcional 'object-fit: cover' sem distorção nem esticamento
-          drawImageCover(ctx, coverImg, photoX, photoY, photoW, photoH);
-
-          ctx.filter = 'none';
-          ctx.restore();
-          coverRendered = true;
-        } finally {
-          coverCleanup();
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+          throw new Error(`Proxy /api/proxy-image retornou status ${response.status}`);
         }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        const coverImg = new Image();
+        coverImg.src = objectUrl;
+
+        // Aguarda a decodificação completa da imagem antes de pintar no Canvas
+        if (typeof coverImg.decode === 'function') {
+          await coverImg.decode();
+        } else {
+          await new Promise((resolve, reject) => {
+            (coverImg as HTMLImageElement).onload = resolve;
+            (coverImg as HTMLImageElement).onerror = reject;
+          });
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(photoX, photoY, photoW, photoH);
+        ctx.clip();
+        ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
+
+        // Ajuste proporcional 'object-fit: cover' sem distorção nem esticamento
+        drawImageCover(ctx, coverImg, photoX, photoY, photoW, photoH);
+
+        ctx.filter = 'none';
+        ctx.restore();
+        coverRendered = true;
       } catch (err) {
-        console.warn('Falha ao renderizar fotografia de capa no card de Stories:', err);
+        console.warn('Tentativa primária via /api/proxy-image falhou, tentando fallback loadImageSafely:', err);
+        try {
+          const { img: fallbackImg, cleanup } = await loadImageSafely(coverUrl);
+          try {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(photoX, photoY, photoW, photoH);
+            ctx.clip();
+            ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
+            drawImageCover(ctx, fallbackImg, photoX, photoY, photoW, photoH);
+            ctx.filter = 'none';
+            ctx.restore();
+            coverRendered = true;
+          } finally {
+            cleanup();
+          }
+        } catch (fallbackErr) {
+          console.warn('Falha definitiva ao carregar foto de capa no Stories:', fallbackErr);
+        }
+      } finally {
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
       }
     }
 

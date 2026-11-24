@@ -298,24 +298,49 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
 
             {/* Compartilhamento para Instagram Stories e Redes */}
             <div id="compartilhar-artigo">
-              <ShareArticle article={article} />
+              <ShareArticle
+                article={{
+                  ...article,
+                  cover_image:
+                    article.cover_image ||
+                    article.cover_image_url ||
+                    article.coverImage ||
+                    article.image_url ||
+                    article.image ||
+                    '',
+                  cover_image_url:
+                    article.cover_image_url ||
+                    article.cover_image ||
+                    article.coverImage ||
+                    article.image_url ||
+                    article.image ||
+                    '',
+                }}
+              />
             </div>
 
-            {/* Seção de Notas de Rodapé e Referências */}
-            <div className="mt-14 pt-6 border-t-2 border-rev-black font-mono text-xs text-neutral-600 space-y-3">
+            {/* Ações complementares de encerramento do artigo: Citação ABNT e Tags */}
+            <div className="mt-8 pt-4 border-t border-neutral-300 flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
+              {article.tags && article.tags.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-neutral-500 uppercase font-bold mr-1">TAGS:</span>
+                  {article.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/busca?tag=${encodeURIComponent(tag)}`}
+                      className="text-[10px] bg-neutral-200 text-rev-black px-2 py-0.5 border border-rev-black hover:bg-rev-red hover:text-white transition-colors"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div />
+              )}
 
-              <h4 className="font-display font-black text-sm uppercase text-rev-black tracking-wider">
-                NOTAS DE EXPEDIENTE & REFERÊNCIAS
-              </h4>
-              <p>
-                [1] Documento catalogado e revisado pela Comissão de Teoria e História d&apos;A Revolta Vermelha.
-              </p>
-              <p>
-                [2] Para citações acadêmicas e teses universitárias, utilize a referência ABNT padronizada através do botão acima.
-              </p>
-              <p>
-                [3] Os textos assinados pelo Conselho Editorial expressam a linha marxista-leninista da revista. Os artigos de opinião expressam exclusivamente as posições individuais de seus autores, fomentando a pluralidade e o debate crítico.
-              </p>
+              <div>
+                <CiteButton article={article} />
+              </div>
             </div>
 
             {/* Ficha do Autor ao Final do Artigo */}

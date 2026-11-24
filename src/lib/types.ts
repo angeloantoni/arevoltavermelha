@@ -29,6 +29,10 @@ export interface Article {
   excerpt: string;
   content: string;
   cover_image_url: string;
+  cover_image?: string;
+  coverImage?: string;
+  image_url?: string;
+  image?: string;
   cover_caption?: string;
   is_hero_featured?: boolean;
   hero_order?: number;

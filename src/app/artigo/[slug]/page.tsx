@@ -72,5 +72,23 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     (a) => a.category === article.category && a.id !== article.id
   );
 
-  return <ArticleReader article={article} relatedArticles={related} />;
+  // Garante que todas as propriedades de URL da capa estejam explicitamente preenchidas com a URL real do Supabase
+  const realCoverUrl =
+    article.cover_image_url ||
+    article.cover_image ||
+    article.coverImage ||
+    article.image_url ||
+    article.image ||
+    '';
+
+  const articleWithCover = {
+    ...article,
+    cover_image: realCoverUrl,
+    cover_image_url: realCoverUrl,
+    coverImage: realCoverUrl,
+    image_url: realCoverUrl,
+    image: realCoverUrl,
+  };
+
+  return <ArticleReader article={articleWithCover} relatedArticles={related} />;
 }

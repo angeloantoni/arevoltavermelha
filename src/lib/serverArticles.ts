@@ -104,6 +104,14 @@ function normalizeArticleRow(row: any, authorsList?: Author[]): Article {
     rawTranslator ||
     (row.translator_id ? pool.find((a) => a.id === row.translator_id) : undefined);
 
+  const coverUrl =
+    row.cover_image_url ||
+    row.cover_image ||
+    row.coverImage ||
+    row.image_url ||
+    row.image ||
+    '';
+
   return {
     id: row.id,
     title: row.title,
@@ -113,7 +121,11 @@ function normalizeArticleRow(row: any, authorsList?: Author[]): Article {
     publication_type: row.publication_type,
     excerpt: row.excerpt,
     content: row.content,
-    cover_image_url: row.cover_image_url,
+    cover_image_url: coverUrl,
+    cover_image: coverUrl,
+    coverImage: coverUrl,
+    image_url: coverUrl,
+    image: coverUrl,
     cover_caption: row.cover_caption || '',
     is_hero_featured: Boolean(row.is_hero_featured),
     hero_order: row.hero_order || 0,
