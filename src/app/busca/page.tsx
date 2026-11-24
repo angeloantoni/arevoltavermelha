@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Clock, ArrowRight, X } from 'lucide-react';
+import { Search, Clock, ArrowRight, X, Tag } from 'lucide-react';
 import { ArticleCategory, Article } from '@/lib/types';
 
 const CATEGORIES: (ArticleCategory | 'TODOS')[] = [
@@ -18,12 +18,19 @@ const CATEGORIES: (ArticleCategory | 'TODOS')[] = [
 
 function BuscaContent() {
   const searchParams = useSearchParams();
-  const initialQuery = searchParams.get('q') || '';
+  const initialQuery = searchParams.get('q') || searchParams.get('tag') || '';
 
   const [query, setQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState<ArticleCategory | 'TODOS'>('TODOS');
   const [articles, setArticles] = useState<Article[]>([]);
   const [results, setResults] = useState<Article[]>([]);
+
+  useEffect(() => {
+    const fromParam = searchParams.get('q') || searchParams.get('tag');
+    if (fromParam !== null) {
+      setQuery(fromParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetch('/api/articles')
@@ -36,8 +43,13 @@ function BuscaContent() {
       .catch((err) => console.error('Erro ao buscar acervo:', err));
   }, []);
 
+  // Coleta todas as tags únicas presentes nos artigos
+  const allTags = Array.from(
+    new Set(articles.flatMap((a) => a.tags || []).filter(Boolean))
+  ).sort();
+
   useEffect(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim().replace(/^#/, '').toLowerCase();
     const filtered = articles.filter((art) => {
       const matchesCat =
         !selectedCategory || selectedCategory === 'TODOS' || art.category === selectedCategory;
@@ -48,7 +60,8 @@ function BuscaContent() {
         art.subtitle?.toLowerCase().includes(q) ||
         art.excerpt.toLowerCase().includes(q) ||
         art.publication_type.toLowerCase().includes(q) ||
-        art.author?.name.toLowerCase().includes(q)
+        art.author?.name.toLowerCase().includes(q) ||
+        art.tags?.some((t) => t.toLowerCase().includes(q) || q.includes(t.toLowerCase()))
       );
     });
     setResults(filtered);
@@ -111,17 +124,51 @@ function BuscaContent() {
             </div>
           </div>
 
-          {/* Feedback de Contagem */}
-          <div className="mt-4 pt-4 border-t border-neutral-300 flex items-center justify-between text-xs font-mono text-neutral-600">
+          {/* Feedback de Contagem e Nuvem de Tags */}
+          <div className="mt-4 pt-4 border-t border-neutral-300 flex flex-col sm:flex-row sm:items-center justify-between text-xs font-mono text-neutral-600 gap-2">
             <span>
               ENCONTRADOS: <strong className="text-rev-red">{results.length}</strong> REGISTROS
             </span>
             {query && (
-              <span>
+              <span className="flex items-center gap-1.5">
                 FILTRANDO POR: &quot;<strong>{query}</strong>&quot;
+                <button
+                  onClick={() => setQuery('')}
+                  className="text-rev-red hover:underline font-bold text-[11px]"
+                >
+                  [LIMPAR]
+                </button>
               </span>
             )}
           </div>
+
+          {/* Nuvem de Tags Rápidas */}
+          {allTags.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-neutral-300 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-mono text-neutral-500 uppercase font-bold mr-1 flex items-center gap-1">
+                <Tag className="w-3 h-3 text-rev-red" />
+                FILTRAR POR TAG:
+              </span>
+              {allTags.map((tag) => {
+                const cleanTag = tag.toUpperCase();
+                const isSelected = query.toUpperCase() === cleanTag || query.toUpperCase() === `#${cleanTag}`;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setQuery(isSelected ? '' : cleanTag)}
+                    className={`px-2 py-0.5 text-[11px] font-mono uppercase border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-rev-red text-white border-rev-red font-bold shadow-[2px_2px_0px_#111111]'
+                        : 'bg-white text-rev-black border-rev-black hover:bg-neutral-200'
+                    }`}
+                  >
+                    #{cleanTag}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Lista de Resultados */}
@@ -169,6 +216,26 @@ function BuscaContent() {
                   <p className="mt-3 text-xs font-mono text-neutral-600 line-clamp-3 leading-relaxed">
                     {art.excerpt}
                   </p>
+
+                  {/* Tags do Artigo no Card */}
+                  {art.tags && art.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-3">
+                      {art.tags.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setQuery(t);
+                          }}
+                          className="px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase bg-neutral-100 hover:bg-rev-red hover:text-white border border-neutral-300 transition-colors cursor-pointer"
+                          title={`Filtrar por #${t}`}
+                        >
+                          #{t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 mt-6 border-t border-neutral-200 flex items-center justify-between">

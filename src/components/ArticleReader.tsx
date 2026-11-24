@@ -7,6 +7,7 @@ import { Printer, ArrowLeft, Share2, Calendar } from 'lucide-react';
 import { Article } from '@/lib/types';
 import CiteButton from '@/components/CiteButton';
 import ShareArticle from '@/components/ShareArticle';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 
 
@@ -37,76 +38,6 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
         alert('Link do artigo copiado para a área de transferência!');
       }
     }
-  };
-
-
-  // Processador simples de Markdown para renderizar títulos, pull quotes e parágrafos
-  const renderFormattedContent = (content: string) => {
-    const lines = content.split('\n');
-    const elements: React.ReactNode[] = [];
-    let currentParagraph: string[] = [];
-
-    const flushParagraph = (key: number) => {
-      if (currentParagraph.length > 0) {
-        const text = currentParagraph.join(' ').trim();
-        if (text) {
-          elements.push(
-            <p key={`p-${key}`} className="mb-6 leading-[1.8] text-neutral-800 text-justify">
-              {text}
-            </p>
-          );
-        }
-        currentParagraph = [];
-      }
-    };
-
-    lines.forEach((line, index) => {
-      const trimmed = line.trim();
-
-      if (trimmed.startsWith('# ')) {
-        flushParagraph(index);
-        elements.push(
-          <h2
-            key={`h1-${index}`}
-            className="font-display font-black text-2xl sm:text-3xl uppercase tracking-tight text-rev-black mt-10 mb-4 border-b border-rev-black pb-2"
-          >
-            {trimmed.replace('# ', '')}
-          </h2>
-        );
-      } else if (trimmed.startsWith('## ')) {
-        flushParagraph(index);
-        elements.push(
-          <h3
-            key={`h2-${index}`}
-            className="font-display font-black text-xl sm:text-2xl uppercase tracking-tight text-rev-black mt-8 mb-3"
-          >
-            {trimmed.replace('## ', '')}
-          </h3>
-        );
-      } else if (trimmed.startsWith('> ')) {
-        flushParagraph(index);
-        elements.push(
-          <blockquote key={`quote-${index}`} className="pull-quote my-8 pl-5 py-2">
-            {trimmed.replace('> ', '')}
-          </blockquote>
-        );
-      } else if (trimmed.startsWith('- ') || trimmed.startsWith('1. ') || trimmed.startsWith('2. ') || trimmed.startsWith('3. ')) {
-        flushParagraph(index);
-        elements.push(
-          <div key={`li-${index}`} className="flex items-start gap-2 mb-3 pl-4 border-l border-neutral-300">
-            <span className="text-rev-red font-bold font-mono">■</span>
-            <span className="leading-relaxed text-neutral-800">{trimmed.replace(/^[-*]|\d+\.\s*/, '')}</span>
-          </div>
-        );
-      } else if (trimmed === '') {
-        flushParagraph(index);
-      } else {
-        currentParagraph.push(trimmed);
-      }
-    });
-
-    flushParagraph(lines.length);
-    return elements;
   };
 
   return (
@@ -249,9 +180,28 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
 
         {/* Subtítulo em Vermelho Revolucionário #C81E1E */}
         {article.subtitle && (
-          <h2 className="font-mono text-base sm:text-xl font-medium text-rev-red leading-relaxed mb-6 border-l-4 border-rev-red pl-4">
+          <h2 className="font-mono text-base sm:text-xl font-medium text-rev-red leading-relaxed mb-4 border-l-4 border-rev-red pl-4">
             {article.subtitle}
           </h2>
+        )}
+
+        {/* Tags da Publicação */}
+        {article.tags && article.tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-6">
+            <span className="text-[10px] font-mono text-neutral-500 uppercase font-bold tracking-wider mr-1">
+              TAGS:
+            </span>
+            {article.tags.map((tag) => (
+              <Link
+                key={tag}
+                href={`/busca?q=${encodeURIComponent(tag)}`}
+                className="px-2 py-0.5 text-[11px] font-mono font-bold uppercase bg-white hover:bg-rev-red hover:text-white border border-rev-black transition-colors shadow-[1px_1px_0px_#111111]"
+                title={`Pesquisar artigos com #${tag}`}
+              >
+                #{tag}
+              </Link>
+            ))}
+          </div>
         )}
 
         {/* Informações detalhadas de autoria e tradução */}
@@ -343,7 +293,7 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
             </div>
 
             {/* Conteúdo Principal Renderizado */}
-            <div className="article-body">{renderFormattedContent(article.content)}</div>
+            <MarkdownRenderer content={article.content} />
 
             {/* Compartilhamento para Instagram Stories e Redes */}
             <div id="compartilhar-artigo">

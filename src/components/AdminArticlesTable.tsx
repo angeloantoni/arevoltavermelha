@@ -16,12 +16,13 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
 
   const filteredArticles = articles.filter((art) => {
     if (!search.trim()) return true;
-    const term = search.toLowerCase();
+    const term = search.toLowerCase().replace(/^#/, '');
     return (
       art.title.toLowerCase().includes(term) ||
       art.slug.toLowerCase().includes(term) ||
       art.category.toLowerCase().includes(term) ||
-      art.author?.name.toLowerCase().includes(term)
+      art.author?.name.toLowerCase().includes(term) ||
+      art.tags?.some((t) => t.toLowerCase().includes(term))
     );
   });
 
@@ -112,6 +113,18 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
                         {art.title}
                       </div>
                       <div className="text-[10px] text-neutral-500">slug: /{art.slug}</div>
+                      {art.tags && art.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {art.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="px-1 text-[8px] font-mono uppercase bg-neutral-100 text-neutral-600 border border-neutral-300"
+                            >
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4">
                       <span

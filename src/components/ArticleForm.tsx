@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock, Tag, X } from 'lucide-react';
 import { ArticleCategory, PublicationType, Article, Author } from '@/lib/types';
 import { calculateReadingTime } from '@/lib/readingTime';
 import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from '@/lib/uuid';
 import ImageUploadField from '@/components/ImageUploadField';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 const CATEGORIES: ArticleCategory[] = [
   'EDITORIAL',
@@ -71,6 +72,8 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
       'https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1200&auto=format&fit=crop'
   );
   const [coverCaption, setCoverCaption] = useState(initialArticle?.cover_caption || '');
+  const [tags, setTags] = useState<string[]>(initialArticle?.tags || []);
+  const [tagInput, setTagInput] = useState('');
 
   const [content, setContent] = useState(
     initialArticle?.content ||
@@ -84,6 +87,25 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
 
   // Cálculo dinâmico do tempo de leitura em tempo real
   const { minutes: readingTimeMinutes, wordCount } = calculateReadingTime(content);
+
+  const addTag = (raw: string) => {
+    const clean = raw.trim().toUpperCase().replace(/^#/, '');
+    if (clean && !tags.includes(clean)) {
+      setTags((prev) => [...prev, clean]);
+    }
+    setTagInput('');
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
 
   // Gerar slug automaticamente se for novo artigo e slug estiver em branco
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +144,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
         author_id: ensureValidUuid(authorId, CONSELHO_EDITORIAL_UUID),
         cover_image_url: coverImageUrl.trim(),
         cover_caption: coverCaption.trim(),
+        tags,
         excerpt: excerpt.trim(),
         content,
         reading_time_minutes: readingTimeMinutes,
@@ -371,6 +394,62 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
             />
           </div>
 
+          {/* Campo de Tags (Palavras-chave em caixa alta) */}
+          <div className="space-y-2 border border-rev-black p-3.5 bg-neutral-50 shadow-[2px_2px_0px_#111111]">
+            <label className="text-xs font-mono font-bold uppercase text-rev-black flex flex-wrap items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-rev-red" />
+                <span>TAGS & TEMAS DO ARTIGO (SEPARADOS POR VÍRGULA OU ENTER)*:</span>
+              </span>
+              <span className="text-[10px] text-neutral-500 font-normal">
+                Normalização automática em CAIXA ALTA
+              </span>
+            </label>
+
+            {/* Tags já adicionadas */}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pb-1">
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-bold bg-white text-rev-black border border-rev-black shadow-[1px_1px_0px_#111111]"
+                  >
+                    <span className="text-rev-red">#</span>
+                    <span>{t}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeTag(t)}
+                      className="text-neutral-400 hover:text-rev-red transition-colors ml-0.5 cursor-pointer"
+                      title={`Remover tag #${t}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Digite uma tag (ex: PALESTINA, 1935, CULTURA, SINDICATO, TEORIA) e aperte Enter..."
+                  className="w-full px-3 py-2 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none bg-white uppercase"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => addTag(tagInput)}
+                className="btn-brutalist !py-2 !px-3 !text-xs !bg-rev-black !text-white hover:!bg-rev-red whitespace-nowrap"
+              >
+                + ADICIONAR TAG
+              </button>
+            </div>
+          </div>
+
           {/* Resumo / Excerpt */}
           <div className="space-y-1">
             <label className="text-xs font-mono font-bold uppercase text-rev-black block">
@@ -408,7 +487,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
                   }`}
                 >
                   <Eye className="w-3 h-3" />
-                  <span>PRÉ-VISUALIZAÇÃO</span>
+                  <span>PRÉ-VISUALIZAÇÃO DA LEITURA</span>
                 </button>
               </div>
 
@@ -420,21 +499,100 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
             <div className="p-4">
               {activeTab === 'editor' ? (
                 <textarea
-                  rows={14}
+                  rows={16}
                   required
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="w-full p-3 font-mono text-xs focus:outline-none focus:ring-0 leading-relaxed border border-neutral-200"
                 />
               ) : (
-                <div className="p-6 bg-neutral-50 border border-neutral-200 max-w-[68ch] mx-auto font-mono text-xs leading-relaxed space-y-4">
-                  <div className="font-display font-black text-xl uppercase text-rev-black">
-                    {title || 'TÍTULO DO ARTIGO'}
-                  </div>
-                  {subtitle && (
-                    <div className="font-mono text-rev-red font-bold">{subtitle}</div>
+                <div className="bg-white border border-rev-black overflow-hidden shadow-[3px_3px_0px_#111111]">
+                  {/* Top Banner Fotográfico P&B da Pré-visualização */}
+                  {coverImageUrl && (
+                    <div className="relative w-full h-52 sm:h-72 bg-rev-black overflow-hidden border-b border-rev-black">
+                      <img
+                        src={coverImageUrl}
+                        alt={title || 'Pré-visualização da capa'}
+                        className="w-full h-full object-cover filter grayscale contrast-125"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                      {coverCaption && (
+                        <div className="absolute bottom-2 right-3 max-w-md text-right text-[10px] text-neutral-300 font-mono bg-black/80 px-2.5 py-1 border border-neutral-700">
+                          {coverCaption}
+                        </div>
+                      )}
+                    </div>
                   )}
-                  <div className="whitespace-pre-wrap text-neutral-800">{content}</div>
+
+                  {/* Barra de Metadados / Breadcrumb idêntica ao Reader público */}
+                  <div className="bg-neutral-100 border-b border-rev-black py-2.5 px-4 sm:px-6 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span
+                        className={`px-2 py-0.5 font-bold uppercase text-white ${
+                          publicationType === 'ARTIGO EDITORIAL' ? 'bg-rev-red' : 'bg-rev-black'
+                        }`}
+                      >
+                        {publicationType}
+                      </span>
+                      <span>•</span>
+                      <span className="font-bold text-rev-black uppercase">{category}</span>
+                      <span>•</span>
+                      <span className="font-bold text-neutral-700 uppercase">
+                        {authors.find((a) => a.id === authorId)?.name || 'CONSELHO EDITORIAL'}
+                      </span>
+                      <span>•</span>
+                      <span className="text-rev-red font-bold">{readingTimeMinutes} MINUTOS</span>
+                    </div>
+
+                    <div className="text-[10px] text-neutral-500 font-mono">
+                      PRÉVIA FIEL AO LAYOUT PÚBLICO
+                    </div>
+                  </div>
+
+                  {/* Área Editorial do Texto */}
+                  <div className="max-w-[760px] mx-auto px-4 sm:px-6 pt-8 pb-8">
+                    <h1 className="font-display font-black text-2xl sm:text-4xl uppercase tracking-tight text-rev-black leading-tight mb-3">
+                      {title || 'TÍTULO PRINCIPAL DO ARTIGO'}
+                    </h1>
+
+                    {subtitle && (
+                      <h2 className="font-mono text-sm sm:text-lg font-medium text-rev-red leading-relaxed mb-4 border-l-4 border-rev-red pl-3">
+                        {subtitle}
+                      </h2>
+                    )}
+
+                    {/* Tags da Publicação */}
+                    {tags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mb-6">
+                        <span className="text-[10px] font-mono text-neutral-500 uppercase font-bold mr-1">
+                          TAGS:
+                        </span>
+                        {tags.map((t) => (
+                          <span
+                            key={t}
+                            className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase bg-white border border-rev-black shadow-[1px_1px_0px_#111111]"
+                          >
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Resumo Executivo / Excerpt */}
+                    {excerpt && (
+                      <div className="bg-neutral-100 border-l-4 border-rev-black p-4 mb-8 text-neutral-700 italic text-xs sm:text-sm font-sans leading-relaxed">
+                        <span className="font-mono font-bold not-italic text-rev-black text-xs block mb-1">
+                          SUMÁRIO EXECUTIVO:
+                        </span>
+                        {excerpt}
+                      </div>
+                    )}
+
+                    {/* Conteúdo Renderizado com Tipografia Brutalista Idêntica */}
+                    <div className="max-w-[68ch] mx-auto">
+                      <MarkdownRenderer content={content} />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

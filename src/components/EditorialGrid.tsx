@@ -23,8 +23,10 @@ const CATEGORIES: (ArticleCategory | 'TODOS')[] = [
 export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
   const searchParams = useSearchParams();
   const catParam = searchParams.get('cat') as ArticleCategory | null;
+  const tagParam = searchParams.get('tag')?.toUpperCase();
 
   const [activeTab, setActiveTab] = useState<ArticleCategory | 'TODOS'>('TODOS');
+  const [selectedTag, setSelectedTag] = useState<string | null>(tagParam || null);
   const [visibleCount, setVisibleCount] = useState(8);
 
   useEffect(() => {
@@ -33,10 +35,20 @@ export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
     }
   }, [catParam]);
 
-  const filteredArticles =
-    activeTab === 'TODOS'
-      ? initialArticles
-      : initialArticles.filter((art) => art.category === activeTab);
+  useEffect(() => {
+    if (tagParam) {
+      setSelectedTag(tagParam);
+    }
+  }, [tagParam]);
+
+  const filteredArticles = initialArticles.filter((art) => {
+    const matchesCat = activeTab === 'TODOS' || art.category === activeTab;
+    if (!matchesCat) return false;
+    if (!selectedTag) return true;
+    return art.tags?.some(
+      (t) => t.toUpperCase() === selectedTag || selectedTag.includes(t.toUpperCase())
+    );
+  });
 
   const visibleArticles = filteredArticles.slice(0, visibleCount);
 
@@ -75,6 +87,27 @@ export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
             })}
           </div>
         </div>
+
+        {/* Indicador de Filtro Ativo por Tag */}
+        {selectedTag && (
+          <div className="mb-8 p-3.5 bg-neutral-100 border border-rev-black flex flex-wrap items-center justify-between gap-3 shadow-[2px_2px_0px_#111111]">
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="font-bold text-rev-red uppercase tracking-wider">FILTRANDO POR TEMA:</span>
+              <span className="bg-rev-red text-white px-2.5 py-0.5 font-bold uppercase">
+                #{selectedTag}
+              </span>
+              <span className="text-neutral-500">
+                ({filteredArticles.length} publicações encontradas)
+              </span>
+            </div>
+            <button
+              onClick={() => setSelectedTag(null)}
+              className="text-xs font-mono font-bold text-rev-red hover:underline cursor-pointer"
+            >
+              [REMOVER FILTRO DE TAG ✕]
+            </button>
+          </div>
+        )}
 
         {/* Grid Limpo de Artigos com Linhas Rígidas de 1px */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 border-t border-l border-rev-black">
@@ -133,6 +166,29 @@ export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
                     <p className="mt-2.5 text-xs text-neutral-600 font-mono line-clamp-2 leading-relaxed">
                       {art.excerpt}
                     </p>
+
+                    {/* Tags do Artigo no Card */}
+                    {art.tags && art.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {art.tags.slice(0, 3).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedTag(t.toUpperCase());
+                            }}
+                            className={`px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
+                              selectedTag === t.toUpperCase()
+                                ? 'bg-rev-red text-white border-rev-red'
+                                : 'bg-neutral-100 text-neutral-800 border-neutral-300 hover:bg-rev-red hover:text-white'
+                            }`}
+                          >
+                            #{t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

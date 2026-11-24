@@ -100,6 +100,41 @@ function attachAuthor(art: Article, authorsList?: Author[]): Article {
     ...art,
     author: art.author || author,
     translator: art.translator || translator,
+    tags: Array.isArray(art.tags) ? art.tags : [],
+  };
+}
+
+/**
+ * Normaliza uma linha retornada diretamente da consulta Supabase (com join de authors).
+ */
+function normalizeArticleRow(row: any, authorsList?: Author[]): Article {
+  const pool = authorsList && authorsList.length > 0 ? authorsList : DEFAULT_AUTHORS_WITH_UUIDS;
+  const authorFromJoin = row.authors;
+  const author = authorFromJoin || pool.find((a) => a.id === row.author_id) || pool[0];
+  const translator = row.translator_id ? pool.find((a) => a.id === row.translator_id) : undefined;
+
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle || '',
+    slug: row.slug,
+    category: row.category,
+    publication_type: row.publication_type,
+    excerpt: row.excerpt,
+    content: row.content,
+    cover_image_url: row.cover_image_url,
+    cover_caption: row.cover_caption || '',
+    is_hero_featured: Boolean(row.is_hero_featured),
+    hero_order: row.hero_order || 0,
+    reading_time_minutes: row.reading_time_minutes || 10,
+    author_id: row.author_id,
+    author: author,
+    translator_id: row.translator_id || undefined,
+    translator: translator,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    status: row.status || 'published',
+    published_at: row.published_at || new Date().toISOString(),
+    created_at: row.created_at || new Date().toISOString(),
   };
 }
 
@@ -131,11 +166,11 @@ export async function getAllArticles(): Promise<Article[]> {
     try {
       const { data, error } = await supabase
         .from('articles')
-        .select('*')
+        .select('*, authors(*)')
         .order('created_at', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        return (data as Article[]).map((art) => attachAuthor(art, authors));
+        return data.map((row: any) => normalizeArticleRow(row, authors));
       }
       if (error) {
         console.warn('Aviso: Supabase retornou erro na listagem de artigos, utilizando armazenamento local:', error.message);
@@ -160,16 +195,54 @@ export async function getAllArticles(): Promise<Article[]> {
  * Obtém um artigo pelo slug com autor anexado.
  */
 export async function getArticleBySlug(slug: string): Promise<Article | undefined> {
-  const all = await getAllArticles();
-  return all.find((a) => a.slug === slug);
+  const authors = await getServerAuthors();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*, authors(*)')
+        .eq('slug', slug)
+        .maybeSingle();
+
+      if (!error && data) {
+        return normalizeArticleRow(data, authors);
+      }
+    } catch (err) {
+      console.warn(`Erro ao consultar artigo pelo slug "${slug}" no Supabase:`, err);
+    }
+  }
+
+  const localArticles = ensureLocalStore();
+  const found = localArticles.find((a) => a.slug === slug);
+  return found ? attachAuthor(found, authors) : undefined;
 }
 
 /**
  * Obtém um artigo pelo ID único.
  */
 export async function getArticleById(id: string): Promise<Article | undefined> {
-  const all = await getAllArticles();
-  return all.find((a) => a.id === id);
+  const authors = await getServerAuthors();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*, authors(*)')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return normalizeArticleRow(data, authors);
+      }
+    } catch (err) {
+      console.warn(`Erro ao consultar artigo "${id}" no Supabase:`, err);
+    }
+  }
+
+  const localArticles = ensureLocalStore();
+  const found = localArticles.find((a) => a.id === id);
+  return found ? attachAuthor(found, authors) : undefined;
 }
 
 /**
@@ -212,6 +285,11 @@ export async function createArticle(
       ? payload.translator_id
       : null;
 
+  // Normaliza tags para caixa alta sem duplicidades
+  const cleanTags = Array.isArray(payload.tags)
+    ? Array.from(new Set(payload.tags.map((t) => t.trim().toUpperCase()).filter(Boolean)))
+    : [];
+
   const newArticle: Article = {
     id: newId,
     title: payload.title.trim(),
@@ -230,6 +308,7 @@ export async function createArticle(
     reading_time_minutes: calculatedTime,
     author_id: validAuthorId,
     translator_id: validTranslatorId || undefined,
+    tags: cleanTags,
     status: payload.status || 'published',
     published_at: now,
     created_at: now,
@@ -256,6 +335,7 @@ export async function createArticle(
       reading_time_minutes: newArticle.reading_time_minutes,
       author_id: validAuthorId,
       translator_id: validTranslatorId,
+      tags: newArticle.tags,
       status: newArticle.status,
       published_at: newArticle.published_at,
       created_at: newArticle.created_at,
@@ -286,6 +366,67 @@ export async function updateArticle(
   id: string,
   payload: Partial<Article>
 ): Promise<Article> {
+  const authors = await getServerAuthors();
+  const cleanTags = Array.isArray(payload.tags)
+    ? Array.from(new Set(payload.tags.map((t) => t.trim().toUpperCase()).filter(Boolean)))
+    : undefined;
+
+  // 1. Tentar atualizar no Supabase se configurado
+  if (isSupabaseConfigured && supabase) {
+    await ensureConselhoEditorialInSupabase();
+
+    const dbPayload: Record<string, any> = {};
+    if (payload.title !== undefined) dbPayload.title = payload.title.trim();
+    if (payload.subtitle !== undefined) dbPayload.subtitle = payload.subtitle?.trim() || '';
+    if (payload.slug !== undefined) dbPayload.slug = payload.slug.trim();
+    if (payload.category !== undefined) dbPayload.category = payload.category;
+    if (payload.publication_type !== undefined) dbPayload.publication_type = payload.publication_type;
+    if (payload.excerpt !== undefined) dbPayload.excerpt = payload.excerpt.trim();
+    if (payload.content !== undefined) {
+      dbPayload.content = payload.content;
+      dbPayload.reading_time_minutes = calculateReadingTime(payload.content).minutes;
+    }
+    if (payload.cover_image_url !== undefined) dbPayload.cover_image_url = payload.cover_image_url.trim();
+    if (payload.cover_caption !== undefined) dbPayload.cover_caption = payload.cover_caption?.trim() || '';
+    if (payload.author_id !== undefined) {
+      dbPayload.author_id = ensureValidUuid(payload.author_id, CONSELHO_EDITORIAL_UUID);
+    }
+    if (payload.translator_id !== undefined) {
+      dbPayload.translator_id = payload.translator_id && isValidUuid(payload.translator_id) ? payload.translator_id : null;
+    }
+    if (payload.status !== undefined) dbPayload.status = payload.status;
+    if (cleanTags !== undefined) dbPayload.tags = cleanTags;
+
+    const { data, error } = await supabase
+      .from('articles')
+      .update(dbPayload)
+      .eq('id', id)
+      .select('*, authors(*)')
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro retornado pelo Supabase na atualização:', error);
+      throw new Error(`Falha no banco Supabase: ${error.message}`);
+    }
+
+    if (data) {
+      const normalized = normalizeArticleRow(data, authors);
+
+      // Sincroniza também no armazenamento local caso o artigo exista lá
+      const current = ensureLocalStore();
+      const existingIndex = current.findIndex((a) => a.id === id);
+      if (existingIndex >= 0) {
+        current[existingIndex] = { ...current[existingIndex], ...normalized };
+        saveLocalStore(current);
+      }
+
+      // Revalida rotas imediatamente
+      revalidateEditorialPaths(normalized.slug);
+      return normalized;
+    }
+  }
+
+  // 2. Persistir no armazenamento local se não estiver no Supabase ou Supabase offline
   const current = ensureLocalStore();
   const existingIndex = current.findIndex((a) => a.id === id);
 
@@ -315,47 +456,17 @@ export async function updateArticle(
     author_id: validAuthorId,
     translator_id: validTranslatorId || undefined,
     reading_time_minutes: calculatedTime,
+    tags: cleanTags !== undefined ? cleanTags : (existing.tags || []),
     created_at: existing.created_at,
     published_at: payload.published_at || existing.published_at,
   };
 
-  // 1. Tentar atualizar no Supabase se configurado
-  if (isSupabaseConfigured && supabase) {
-    await ensureConselhoEditorialInSupabase();
-
-    const { error } = await supabase
-      .from('articles')
-      .update({
-        title: updatedArticle.title,
-        subtitle: updatedArticle.subtitle,
-        slug: updatedArticle.slug,
-        category: updatedArticle.category,
-        publication_type: updatedArticle.publication_type,
-        excerpt: updatedArticle.excerpt,
-        content: updatedArticle.content,
-        cover_image_url: updatedArticle.cover_image_url,
-        cover_caption: updatedArticle.cover_caption,
-        reading_time_minutes: updatedArticle.reading_time_minutes,
-        author_id: validAuthorId,
-        translator_id: validTranslatorId,
-        status: updatedArticle.status,
-      })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Erro retornado pelo Supabase na atualização:', error);
-      throw new Error(`Falha no banco Supabase: ${error.message}`);
-    }
-  }
-
-  // 2. Persistir no armazenamento local
   current[existingIndex] = updatedArticle;
   saveLocalStore(current);
 
   // 3. Revalidar rotas
   revalidateEditorialPaths(updatedArticle.slug);
 
-  const authors = await getServerAuthors();
   return attachAuthor(updatedArticle, authors);
 }
 
@@ -363,28 +474,41 @@ export async function updateArticle(
  * Exclusão definitiva de artigo (DELETE).
  */
 export async function deleteArticle(id: string): Promise<boolean> {
-  const current = ensureLocalStore();
-  const existing = current.find((a) => a.id === id);
-
-  if (!existing) {
-    throw new Error(`Artigo com ID "${id}" não encontrado.`);
-  }
+  let deletedSlug: string | undefined;
 
   // 1. Tentar excluir no Supabase se configurado
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from('articles').delete().eq('id', id);
+    const { data, error } = await supabase
+      .from('articles')
+      .delete()
+      .eq('id', id)
+      .select('slug')
+      .maybeSingle();
+
     if (error) {
       console.error('Erro retornado pelo Supabase na exclusão:', error);
       throw new Error(`Falha no banco Supabase: ${error.message}`);
     }
+
+    if (data?.slug) {
+      deletedSlug = data.slug;
+    }
   }
 
   // 2. Remover do armazenamento local
-  const filtered = current.filter((a) => a.id !== id);
-  saveLocalStore(filtered);
+  const current = ensureLocalStore();
+  const existing = current.find((a) => a.id === id);
+
+  if (existing) {
+    deletedSlug = deletedSlug || existing.slug;
+    const filtered = current.filter((a) => a.id !== id);
+    saveLocalStore(filtered);
+  } else if (!isSupabaseConfigured && !deletedSlug) {
+    throw new Error(`Artigo com ID "${id}" não encontrado.`);
+  }
 
   // 3. Revalidar rotas
-  revalidateEditorialPaths(existing.slug);
+  revalidateEditorialPaths(deletedSlug);
 
   return true;
 }

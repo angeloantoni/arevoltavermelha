@@ -37,6 +37,7 @@ export interface Article {
   author?: Author;
   translator_id?: string;
   translator?: Author;
+  tags?: string[];
   original_title?: string;
   original_year?: number;
   original_source?: string;

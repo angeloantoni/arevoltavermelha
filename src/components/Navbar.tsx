@@ -59,10 +59,49 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Header 3 células */}
-        <div className="max-w-[1400px] mx-auto grid grid-cols-2 lg:grid-cols-12 items-stretch min-h-[110px] md:min-h-[130px]">
+        {/* Header Responsivo */}
+        {/* 1. Versão Mobile (< 768px): Logotipo perfeitamente centralizado sem deslocamento */}
+        <div className="md:hidden relative w-full flex items-center justify-center min-h-[85px] px-14 py-2 bg-rev-white">
+          {/* Botão de Busca à Esquerda (Largura fixa 48px com borda 1px) */}
+          <Link
+            href="/busca"
+            aria-label="Busca no acervo"
+            className="absolute left-0 top-0 bottom-0 w-12 flex items-center justify-center border-r border-rev-black text-rev-black hover:text-rev-red hover:bg-neutral-100 transition-colors"
+          >
+            <Search className="w-5 h-5" />
+          </Link>
+
+          {/* Célula Central Mobile: Logotipo 100% centralizado no eixo da tela */}
+          <div className="w-full flex flex-col items-center justify-center mx-auto text-center">
+            <Link
+              href="/"
+              className="flex flex-col items-center justify-center mx-auto text-center group"
+            >
+              <Image
+                src="/logo_horizontal.webp"
+                alt="A Revolta Vermelha - Revista Política"
+                width={480}
+                height={100}
+                className="w-full max-w-[230px] sm:max-w-[280px] h-auto max-h-[68px] sm:max-h-[76px] object-contain mx-auto transition-transform group-hover:scale-[1.01]"
+                priority
+              />
+            </Link>
+          </div>
+
+          {/* Botão de Menu à Direita (Largura fixa 48px com borda 1px idêntica) */}
+          <button
+            onClick={() => setIsMenuOpen(true)}
+            aria-label="Abrir Menu de Navegação"
+            className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center border-l border-rev-black text-rev-black hover:text-rev-red hover:bg-neutral-100 transition-colors cursor-pointer"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 2. Versão Desktop (>= 768px): Header clássico brutalista em 3 células rígidas */}
+        <div className="hidden md:grid max-w-[1400px] mx-auto md:grid-cols-12 items-stretch min-h-[110px] md:min-h-[130px]">
           {/* Célula Esquerda (25% / col-span-3): BUSCA */}
-          <div className="hidden lg:flex lg:col-span-3 items-center border-r border-rev-black px-6">
+          <div className="col-span-3 flex items-center border-r border-rev-black px-6">
             <Link
               href="/busca"
               className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rev-black hover:text-rev-red transition-colors group"
@@ -73,25 +112,25 @@ export default function Navbar() {
           </div>
 
           {/* Célula Central (50% / col-span-6): LOGO OFICIAL CLICÁVEL */}
-          <div className="col-span-1 lg:col-span-6 flex items-center justify-center px-4 py-2">
+          <div className="col-span-6 flex items-center justify-center px-4 py-2">
             <Link href="/" className="flex items-center justify-center w-full group py-0">
               <Image
                 src="/logo_horizontal.webp"
                 alt="A Revolta Vermelha - Revista Política"
                 width={620}
                 height={130}
-                className="w-full max-w-[240px] sm:max-w-[520px] md:max-w-[620px] h-auto max-h-[115px] object-contain transition-transform group-hover:scale-[1.01]"
+                className="w-full max-w-[520px] md:max-w-[620px] h-auto max-h-[115px] object-contain transition-transform group-hover:scale-[1.01]"
                 priority
               />
             </Link>
           </div>
 
           {/* Célula Direita (25% / col-span-3): ASSINE / APOIE CENTRALIZADO + MENU */}
-          <div className="col-span-1 lg:col-span-3 flex items-center justify-end border-l border-rev-black">
-            <div className="hidden sm:flex flex-1 items-center justify-center px-4 py-2">
+          <div className="col-span-3 flex items-center justify-end border-l border-rev-black">
+            <div className="flex-1 flex items-center justify-center px-4 py-2">
               <Link
                 href="/assine"
-                className="w-full max-w-[200px] flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-bold uppercase tracking-wider bg-rev-red text-white hover:bg-rev-black transition-colors border border-rev-black shadow-[2px_2px_0px_#111111]"
+                className="w-full max-w-[190px] flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-bold uppercase tracking-wider bg-rev-red text-white hover:bg-rev-black transition-colors border border-rev-black shadow-[2px_2px_0px_#111111]"
               >
                 <Flame className="w-3.5 h-3.5" />
                 <span>ASSINE / APOIE</span>
@@ -104,7 +143,7 @@ export default function Navbar() {
               className="h-full px-5 py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest bg-rev-white hover:bg-rev-red hover:text-white transition-colors border-l border-rev-black cursor-pointer"
             >
               <Menu className="w-5 h-5" />
-              <span className="hidden sm:inline">MENU</span>
+              <span>MENU</span>
             </button>
           </div>
         </div>

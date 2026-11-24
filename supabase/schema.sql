@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS articles (
   reading_time_minutes INT NOT NULL DEFAULT 10,
   author_id UUID REFERENCES authors(id) ON DELETE SET NULL,
   translator_id UUID REFERENCES authors(id) ON DELETE SET NULL,
+  tags TEXT[] DEFAULT '{}'::TEXT[],
   original_title TEXT,
   original_year INT,
   original_source TEXT,
@@ -40,12 +41,16 @@ CREATE TABLE IF NOT EXISTS articles (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Garantir coluna tags em bancos já existentes
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}'::TEXT[];
+
 -- Índices de consulta rápida
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_pub_type ON articles(publication_type);
 CREATE INDEX IF NOT EXISTS idx_articles_status ON articles(status);
 CREATE INDEX IF NOT EXISTS idx_articles_hero ON articles(is_hero_featured, hero_order);
 CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
+CREATE INDEX IF NOT EXISTS idx_articles_tags ON articles USING GIN (tags);
 CREATE INDEX IF NOT EXISTS idx_authors_slug ON authors(slug);
 
 -- ============================================================

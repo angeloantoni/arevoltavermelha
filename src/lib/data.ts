@@ -99,6 +99,7 @@ Reconhecemos os avanços monumentais da União Soviética, das revoluções anti
     hero_order: 1,
     reading_time_minutes: 12,
     author_id: 'auth-editorial',
+    tags: ['MARXISMO-LENINISMO', 'TEORIA', 'EDITORIAL', 'REVOLUÇÃO', 'PARTIDO'],
     status: 'published',
     published_at: '2026-11-23T08:00:00Z',
     created_at: '2026-11-23T08:00:00Z',
@@ -138,6 +139,7 @@ Resgatar 1935 não é alimentar nostalgia estéril, mas compreender a dinâmica 
     hero_order: 2,
     reading_time_minutes: 16,
     author_id: 'auth-5',
+    tags: ['1935', 'NATAL-RN', 'HISTÓRIA', 'MILITARES', 'INSURREIÇÃO', 'ANL'],
     status: 'published',
     published_at: '2026-11-20T10:00:00Z',
     created_at: '2026-11-20T10:00:00Z',
@@ -166,6 +168,7 @@ No Brasil, os ataques à Petrobras, aos reservatórios do pré-sal e aos minerai
     hero_order: 3,
     reading_time_minutes: 14,
     author_id: 'auth-1',
+    tags: ['IMPERIALISMO', 'PALESTINA', 'GEOPOLÍTICA', 'ANTI-IMPERIALISMO', 'SOBERANIA'],
     status: 'published',
     published_at: '2026-11-18T14:00:00Z',
     created_at: '2026-11-18T14:00:00Z',
@@ -193,6 +196,7 @@ A dispersão geográfica dos trabalhadores mediados por aplicativos gerou a ilus
     is_hero_featured: false,
     reading_time_minutes: 10,
     author_id: 'auth-6',
+    tags: ['SINDICALISMO', 'TRABALHO', 'UBERIZAÇÃO', 'CLASSE OPERÁRIA', 'GREVE'],
     status: 'published',
     published_at: '2026-11-15T09:30:00Z',
     created_at: '2026-11-15T09:30:00Z',
@@ -219,6 +223,7 @@ A ilusão parlamentarista crê que a conquista do poder executivo por via eleito
     reading_time_minutes: 22,
     author_id: 'auth-3',
     translator_id: 'auth-6',
+    tags: ['LENIN', 'ESTADO', 'TRADUÇÃO', 'COMUNA DE PARIS', 'TEORIA'],
     original_title: 'Марксизм о государстве',
     original_year: 1917,
     original_source: 'Instituto de Marxismo-Leninismo de Moscou',
@@ -249,6 +254,7 @@ O Rio Grande do Norte ostenta o título de maior gerador de energia eólica do B
     is_hero_featured: false,
     reading_time_minutes: 13,
     author_id: 'auth-4',
+    tags: ['RN', 'ENERGIA EÓLICA', 'QUESTÃO AGRÁRIA', 'NORDESTE', 'CAMPESINATO'],
     status: 'published',
     published_at: '2026-11-08T15:00:00Z',
     created_at: '2026-11-08T15:00:00Z',
@@ -274,6 +280,7 @@ A luta pela libertação da mulher trabalhadora não é um apêndice ou adorno s
     is_hero_featured: false,
     reading_time_minutes: 15,
     author_id: 'auth-2',
+    tags: ['KOLLONTAI', 'FEMINISMO', 'MULHERES', 'SOCIALISMO', 'MORAL COMUNISTA'],
     status: 'published',
     published_at: '2026-11-05T12:00:00Z',
     created_at: '2026-11-05T12:00:00Z',
@@ -322,17 +329,18 @@ export function getAuthorBySlug(slug: string): Author | undefined {
 }
 
 export function searchArticles(query: string, category?: string): Article[] {
-  const q = query.trim().toLowerCase();
+  const cleanQ = query.trim().replace(/^#/, '').toLowerCase();
   return getArticles().filter((art) => {
     const matchesCat = !category || category === 'TODOS' || art.category === category;
     if (!matchesCat) return false;
-    if (!q) return true;
+    if (!cleanQ) return true;
     return (
-      art.title.toLowerCase().includes(q) ||
-      art.subtitle?.toLowerCase().includes(q) ||
-      art.excerpt.toLowerCase().includes(q) ||
-      art.publication_type.toLowerCase().includes(q) ||
-      art.author?.name.toLowerCase().includes(q)
+      art.title.toLowerCase().includes(cleanQ) ||
+      art.subtitle?.toLowerCase().includes(cleanQ) ||
+      art.excerpt.toLowerCase().includes(cleanQ) ||
+      art.publication_type.toLowerCase().includes(cleanQ) ||
+      art.author?.name.toLowerCase().includes(cleanQ) ||
+      art.tags?.some((t) => t.toLowerCase().includes(cleanQ) || cleanQ.includes(t.toLowerCase()))
     );
   });
 }
