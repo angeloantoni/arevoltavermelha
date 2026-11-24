@@ -350,7 +350,9 @@ export default function AdminAutoresPage() {
                   onChange={setAvatarUrl}
                   folder="autores"
                   aspectRatio="square"
-                  helpText="Envie uma foto do dispositivo (quadrada) para o Supabase Storage ou informe uma URL externa."
+                  enableCrop={true}
+                  targetSlug={name || 'autor'}
+                  helpText="Selecione uma foto para enquadrar o rosto (1:1), ajustar o zoom, aplicar filtro P&B e enviar para o Supabase Storage."
                 />
 
                 <div>
