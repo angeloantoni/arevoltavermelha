@@ -78,13 +78,31 @@ function attachAuthor(art: Article, authorsList?: Author[]): Article {
 }
 
 /**
- * Normaliza uma linha retornada diretamente da consulta Supabase (com join de authors).
+ * Consulta de seleção com foreign key explícita na sintaxe PostgREST / Supabase.
+ * Como a tabela articles possui duas chaves estrangeiras referenciando authors (author_id e translator_id),
+ * a sintaxe explícita author:authors!author_id(*) e translator:authors!translator_id(*) elimina a ambiguidade
+ * e impede o erro "Could not embed because more than one relationship was found for 'articles' and 'authors'".
+ */
+export const ARTICLE_SELECT_QUERY =
+  '*, author:authors!author_id(*), translator:authors!translator_id(*)';
+
+/**
+ * Normaliza uma linha retornada diretamente da consulta Supabase (com join explícito de author e translator).
  */
 function normalizeArticleRow(row: any, authorsList?: Author[]): Article {
   const pool = authorsList && authorsList.length > 0 ? authorsList : DEFAULT_AUTHORS_WITH_UUIDS;
-  const authorFromJoin = row.authors;
-  const author = authorFromJoin || pool.find((a) => a.id === row.author_id) || pool[0];
-  const translator = row.translator_id ? pool.find((a) => a.id === row.translator_id) : undefined;
+
+  // Trata autor principal vindo do embed explícito (author:authors!author_id) ou fallback
+  const rawAuthor = Array.isArray(row.author) ? row.author[0] : row.author;
+  const legacyAuthor = Array.isArray(row.authors) ? row.authors[0] : row.authors;
+  const authorFromEmbed = rawAuthor || legacyAuthor;
+  const author = authorFromEmbed || pool.find((a) => a.id === row.author_id) || pool[0];
+
+  // Trata tradutor vindo do embed explícito (translator:authors!translator_id) com fallback seguro caso translator_id seja nulo
+  const rawTranslator = Array.isArray(row.translator) ? row.translator[0] : row.translator;
+  const translator =
+    rawTranslator ||
+    (row.translator_id ? pool.find((a) => a.id === row.translator_id) : undefined);
 
   return {
     id: row.id,
@@ -103,7 +121,7 @@ function normalizeArticleRow(row: any, authorsList?: Author[]): Article {
     author_id: row.author_id,
     author: author,
     translator_id: row.translator_id || undefined,
-    translator: translator,
+    translator: translator || undefined,
     tags: Array.isArray(row.tags) ? row.tags : [],
     status: row.status || 'published',
     published_at: row.published_at || new Date().toISOString(),
@@ -140,7 +158,7 @@ export async function getAllArticles(): Promise<Article[]> {
     try {
       const { data, error } = await supabase
         .from('articles')
-        .select('*, authors(*)')
+        .select(ARTICLE_SELECT_QUERY)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -176,7 +194,7 @@ export async function getArticleBySlug(slug: string): Promise<Article | undefine
     try {
       const { data, error } = await supabase
         .from('articles')
-        .select('*, authors(*)')
+        .select(ARTICLE_SELECT_QUERY)
         .eq('slug', slug)
         .maybeSingle();
 
@@ -209,7 +227,7 @@ export async function getArticleById(id: string): Promise<Article | undefined> {
     try {
       const { data, error } = await supabase
         .from('articles')
-        .select('*, authors(*)')
+        .select(ARTICLE_SELECT_QUERY)
         .eq('id', id)
         .maybeSingle();
 
@@ -340,7 +358,7 @@ export async function createArticle(
     let { data, error } = await supabase
       .from('articles')
       .insert(cleanPayload)
-      .select('*, authors(*)')
+      .select(ARTICLE_SELECT_QUERY)
       .maybeSingle();
 
     // Retry automático caso ocorra código 23505 (articles_slug_key)
@@ -357,7 +375,7 @@ export async function createArticle(
       const retryResult = await supabase
         .from('articles')
         .insert(cleanPayload)
-        .select('*, authors(*)')
+        .select(ARTICLE_SELECT_QUERY)
         .maybeSingle();
 
       data = retryResult.data;
@@ -376,7 +394,7 @@ export async function createArticle(
         const fallbackResult = await supabase
           .from('articles')
           .insert(cleanPayload)
-          .select('*, authors(*)')
+          .select(ARTICLE_SELECT_QUERY)
           .maybeSingle();
 
         data = fallbackResult.data;
@@ -419,7 +437,7 @@ export async function createArticle(
 
 /**
  * Atualização de artigo existente (UPDATE).
- * Executa exclusivamente .update(cleanPayload).eq('id', id).select('*, authors(*)').
+ * Executa exclusivamente .update(cleanPayload).eq('id', id).select(ARTICLE_SELECT_QUERY).
  * Mantém o slug original ou atualiza apenas se o novo slug não pertencer a outro id (.neq('id', id)).
  */
 export async function updateArticle(
@@ -533,7 +551,7 @@ export async function updateArticle(
   delete cleanPayload.authors;
   delete cleanPayload.translator;
 
-  // 4. Executa exclusivamente .update(cleanPayload).eq('id', id).select('*, authors(*)')
+  // 4. Executa exclusivamente .update(cleanPayload).eq('id', id).select(ARTICLE_SELECT_QUERY)
   if (isSupabaseConfigured && supabase) {
     await ensureConselhoEditorialInSupabase();
 
@@ -541,7 +559,7 @@ export async function updateArticle(
       .from('articles')
       .update(cleanPayload)
       .eq('id', id)
-      .select('*, authors(*)')
+      .select(ARTICLE_SELECT_QUERY)
       .maybeSingle();
 
     // Tratamento de segurança contra erro 23505 no update
@@ -562,7 +580,7 @@ export async function updateArticle(
         .from('articles')
         .update(cleanPayload)
         .eq('id', id)
-        .select('*, authors(*)')
+        .select(ARTICLE_SELECT_QUERY)
         .maybeSingle();
 
       data = retryUpdate.data;

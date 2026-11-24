@@ -23,7 +23,11 @@ export default async function AuthorDetailPage({ params }: AuthorPageProps) {
 
   const allArticles = await getAllArticles();
   const authorArticles = allArticles.filter(
-    (a) => a.author_id === author.id || a.author?.slug === author.slug
+    (a) =>
+      a.author_id === author.id ||
+      a.author?.slug === author.slug ||
+      a.translator_id === author.id ||
+      a.translator?.slug === author.slug
   );
 
   return (

@@ -149,7 +149,12 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
                       </span>
                     </td>
                     <td className="py-3 px-4 text-neutral-700">
-                      {art.author?.name || 'CONSELHO EDITORIAL'}
+                      <div>{art.author?.name || 'CONSELHO EDITORIAL'}</div>
+                      {art.translator && (
+                        <div className="text-[10px] text-neutral-500 font-normal">
+                          Trad: {art.translator.name}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-neutral-600">
                       {art.reading_time_minutes} min

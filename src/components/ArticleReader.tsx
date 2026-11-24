@@ -322,7 +322,7 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
               <div className="mt-12 p-6 border-2 border-rev-black bg-neutral-100 flex flex-col sm:flex-row items-center sm:items-start gap-4">
                 <div className="relative w-20 h-20 flex-shrink-0 border border-rev-black overflow-hidden bg-white">
                   <Image
-                    src={article.author.avatar_url}
+                    src={article.author.avatar_url || '/logo.webp'}
                     alt={article.author.name}
                     fill
                     className="object-contain p-1 filter grayscale contrast-125"
@@ -344,6 +344,38 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
                     className="inline-block mt-3 text-xs font-mono font-bold text-rev-red hover:underline"
                   >
                     VER TODOS OS TEXTOS DE {article.author.name.toUpperCase()} →
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Ficha do Tradutor ao Final do Artigo (se houver) */}
+            {article.translator && (
+              <div className="mt-4 p-6 border-2 border-rev-black bg-neutral-50 flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                <div className="relative w-16 h-16 flex-shrink-0 border border-rev-black overflow-hidden bg-white">
+                  <Image
+                    src={article.translator.avatar_url || '/logo.webp'}
+                    alt={article.translator.name}
+                    fill
+                    className="object-contain p-1 filter grayscale contrast-125"
+                  />
+                </div>
+
+                <div className="flex-1 text-center sm:text-left">
+                  <span className="text-[10px] font-mono uppercase text-neutral-600 font-bold">
+                    TRADUÇÃO & EDIÇÃO CRÍTICA
+                  </span>
+                  <h4 className="font-display font-black text-base uppercase text-rev-black">
+                    {article.translator.name}
+                  </h4>
+                  <p className="text-xs text-neutral-600 font-mono mt-1 leading-relaxed">
+                    {article.translator.bio || article.translator.role}
+                  </p>
+                  <Link
+                    href={`/autores/${article.translator.slug}`}
+                    className="inline-block mt-2 text-xs font-mono font-bold text-rev-black hover:text-rev-red hover:underline"
+                  >
+                    VER TODOS OS TEXTOS DE {article.translator.name.toUpperCase()} →
                   </Link>
                 </div>
               </div>

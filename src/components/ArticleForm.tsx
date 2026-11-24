@@ -48,6 +48,11 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
       ? initialArticle.author_id
       : CONSELHO_EDITORIAL_UUID
   );
+  const [translatorId, setTranslatorId] = useState(
+    initialArticle?.translator_id && isValidUuid(initialArticle.translator_id)
+      ? initialArticle.translator_id
+      : ''
+  );
 
   useEffect(() => {
     fetch('/api/authors')
@@ -136,6 +141,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
         category,
         publication_type: publicationType,
         author_id: ensureValidUuid(authorId, CONSELHO_EDITORIAL_UUID),
+        translator_id: translatorId && isValidUuid(translatorId) ? translatorId : null,
         cover_image_url: coverImageUrl.trim(),
         cover_caption: coverCaption.trim(),
         tags,
@@ -321,12 +327,12 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
             </div>
           </div>
 
-          {/* Linha 3: Autor, Tempo de Leitura Calculado e Imagem */}
+          {/* Linha 3: Autor, Tradutor (se houver), Tempo de Leitura Calculado */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-7 space-y-1">
+            <div className="md:col-span-5 space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-mono font-bold uppercase text-rev-black block">
-                  AUTOR / ARTICULISTA:
+                  AUTOR / ARTICULISTA*:
                 </label>
                 <Link
                   href="/admin/autores"
@@ -356,15 +362,34 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
               </select>
             </div>
 
+            {/* Tradutor (Opcional) */}
+            <div className="md:col-span-4 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                TRADUTOR(A) (OPCIONAL):
+              </label>
+              <select
+                value={translatorId}
+                onChange={(e) => setTranslatorId(e.target.value)}
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs bg-white focus:ring-2 focus:ring-rev-red outline-none"
+              >
+                <option value="">NENHUM (ARTIGO ORIGINAL)</option>
+                {authors.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Cálculo Automático do Tempo de Leitura (Somente Leitura) */}
-            <div className="md:col-span-5 space-y-1">
+            <div className="md:col-span-3 space-y-1">
               <label className="text-xs font-mono font-bold uppercase text-rev-black flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-rev-red" />
-                <span>LEITURA (CALCULADO):</span>
+                <span>LEITURA:</span>
               </label>
               <div className="px-3 py-2.5 border border-rev-black bg-neutral-100 font-mono text-xs text-rev-black flex items-center justify-between">
                 <span className="font-bold text-rev-red">{readingTimeMinutes} MIN</span>
-                <span className="text-[10px] text-neutral-500">({wordCount} palavras)</span>
+                <span className="text-[10px] text-neutral-500">({wordCount} pal.)</span>
               </div>
             </div>
           </div>
