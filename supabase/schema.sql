@@ -110,4 +110,7 @@ CREATE POLICY "Exclusão de artigos restrita a autenticados"
 REVOKE INSERT, UPDATE, DELETE ON TABLE authors, articles FROM anon, public;
 GRANT SELECT ON TABLE authors, articles TO anon, authenticated;
 GRANT ALL ON TABLE authors, articles TO authenticated;
+GRANT ALL ON TABLE authors, articles TO service_role;
+GRANT ALL ON TABLE authors, articles TO postgres;
+
 

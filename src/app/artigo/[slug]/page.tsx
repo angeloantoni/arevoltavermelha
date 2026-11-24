@@ -2,7 +2,10 @@ import React from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import ArticleReader from '@/components/ArticleReader';
-import { getArticleBySlug, getArticles, getArticlesByCategory } from '@/lib/data';
+import { getArticleBySlug, getAllArticles } from '@/lib/serverArticles';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface ArticlePageProps {
   params: Promise<{
@@ -12,7 +15,7 @@ interface ArticlePageProps {
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const article = getArticleBySlug(slug);
+  const article = await getArticleBySlug(slug);
 
   if (!article) {
     return {
@@ -56,23 +59,17 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   };
 }
 
-export async function generateStaticParams() {
-  const articles = getArticles();
-  return articles.map((article) => ({
-    slug: article.slug,
-  }));
-}
-
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params;
-  const article = getArticleBySlug(slug);
+  const article = await getArticleBySlug(slug);
 
   if (!article) {
     notFound();
   }
 
-  const related = getArticlesByCategory(article.category).filter(
-    (a) => a.id !== article.id
+  const allArticles = await getAllArticles();
+  const related = allArticles.filter(
+    (a) => a.category === article.category && a.id !== article.id
   );
 
   return <ArticleReader article={article} relatedArticles={related} />;

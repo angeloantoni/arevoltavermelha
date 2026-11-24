@@ -1,0 +1,454 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock } from 'lucide-react';
+import { ArticleCategory, PublicationType, Article } from '@/lib/types';
+import { useAuthors } from '@/lib/authorStore';
+import { calculateReadingTime } from '@/lib/readingTime';
+
+const CATEGORIES: ArticleCategory[] = [
+  'EDITORIAL',
+  'OPINIÃO',
+  'NACIONAL & INTERNACIONAL',
+  'RIO GRANDE DO NORTE (RN)',
+  'TRADUÇÕES',
+];
+
+const PUBLICATION_TYPES: PublicationType[] = [
+  'ARTIGO EDITORIAL',
+  'ARTIGO DE OPINIÃO',
+];
+
+interface ArticleFormProps {
+  initialArticle?: Article;
+  mode: 'create' | 'edit';
+}
+
+export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) {
+  const router = useRouter();
+  const { authors } = useAuthors();
+
+  const [title, setTitle] = useState(initialArticle?.title || '');
+  const [subtitle, setSubtitle] = useState(initialArticle?.subtitle || '');
+  const [slug, setSlug] = useState(initialArticle?.slug || '');
+  const [category, setCategory] = useState<ArticleCategory>(
+    initialArticle?.category || 'EDITORIAL'
+  );
+  const [publicationType, setPublicationType] = useState<PublicationType>(
+    initialArticle?.publication_type || 'ARTIGO EDITORIAL'
+  );
+
+  const [authorId, setAuthorId] = useState(initialArticle?.author_id || '');
+
+  useEffect(() => {
+    if (!authorId && authors.length > 0) {
+      setAuthorId(authors[0].id);
+    }
+  }, [authors, authorId]);
+
+  const [excerpt, setExcerpt] = useState(initialArticle?.excerpt || '');
+  const [coverImageUrl, setCoverImageUrl] = useState(
+    initialArticle?.cover_image_url ||
+      'https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1200&auto=format&fit=crop'
+  );
+  const [coverCaption, setCoverCaption] = useState(initialArticle?.cover_caption || '');
+
+  const [content, setContent] = useState(
+    initialArticle?.content ||
+      `# Título da Seção Principal\n\nInsira aqui o corpo do ensaio teórico em formato Markdown.\n\n> "A teoria revolucionária transforma-se em força material quando penetra as massas."\n\n## Subtítulo Conceitual\n\nAnálise de conjuntura, dados materiais e fundamentos de classe.`
+  );
+
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Cálculo dinâmico do tempo de leitura em tempo real
+  const { minutes: readingTimeMinutes, wordCount } = calculateReadingTime(content);
+
+  // Gerar slug automaticamente se for novo artigo e slug estiver em branco
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTitle(val);
+    if (mode === 'create' && !initialArticle) {
+      setSlug(
+        val
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\w\s-]/g, '')
+          .replace(/\s+/g, '-')
+      );
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (!title.trim() || !content.trim()) {
+      setErrorMessage('Preencha os campos obrigatórios: Título e Conteúdo em Markdown.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const payload = {
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        slug: slug.trim(),
+        category,
+        publication_type: publicationType,
+        author_id: authorId || (authors[0]?.id ?? 'auth-editorial'),
+        cover_image_url: coverImageUrl.trim(),
+        cover_caption: coverCaption.trim(),
+        excerpt: excerpt.trim(),
+        content,
+        reading_time_minutes: readingTimeMinutes,
+        status: 'published' as const,
+      };
+
+      const url =
+        mode === 'edit' && initialArticle?.id
+          ? `/api/articles/${initialArticle.id}`
+          : '/api/articles';
+
+      const method = mode === 'edit' ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro inesperado ao salvar no banco de dados.');
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        router.push('/admin');
+        router.refresh();
+      }, 1200);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha na comunicação com o banco.';
+      setErrorMessage(msg);
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="w-full bg-rev-white min-h-screen py-12">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+        {/* Barra Superior / Voltar */}
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/admin"
+            className="btn-brutalist !py-1.5 !px-3 !text-xs inline-flex items-center gap-1.5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>VOLTAR AO PAINEL CMS</span>
+          </Link>
+
+          <span className="text-xs font-mono text-neutral-500 uppercase">
+            {mode === 'edit' ? 'EDIÇÃO DE PUBLICAÇÃO' : 'NOVA PUBLICAÇÃO'} • VANGUARDA 2026
+          </span>
+        </div>
+
+        {/* Título da Página */}
+        <div className="border-b-2 border-rev-black pb-4 mb-8">
+          <div className="flex items-center gap-2 text-xs font-mono text-rev-red font-bold uppercase tracking-wider mb-1">
+            <span className="w-2.5 h-2.5 bg-rev-red inline-block" />
+            <span>{mode === 'edit' ? 'EDITAR ARTIGO NO ACERVO' : 'REDAÇÃO EDITORIAL'}</span>
+          </div>
+          <h1 className="font-display font-black text-2xl sm:text-4xl uppercase tracking-tight text-rev-black">
+            {mode === 'edit' ? 'EDITAR ARTIGO' : 'NOVO ARTIGO EM MARKDOWN'}
+          </h1>
+          <p className="mt-1 text-xs font-mono text-neutral-600">
+            {mode === 'edit'
+              ? 'Atualize os metadados bibliográficos ou o conteúdo do ensaio. As alterações serão salvas imediatamente.'
+              : 'Preencha os metadados bibliográficos e redija o texto utilizando formatação Markdown padrão.'}
+          </p>
+        </div>
+
+        {/* Feedback de Erro Real */}
+        {errorMessage && (
+          <div className="mb-6 p-4 bg-red-50 border-2 border-rev-red text-rev-red text-xs font-mono flex items-start gap-3 shadow-[3px_3px_0px_#111111]">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold uppercase tracking-wider">FALHA AO PERSISTIR ARTIGO:</div>
+              <div className="mt-1 leading-relaxed">{errorMessage}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Feedback de Sucesso */}
+        {success && (
+          <div className="mb-6 p-4 bg-green-50 border-2 border-green-700 text-green-900 text-xs font-mono flex items-center gap-3 shadow-[3px_3px_0px_#111111]">
+            <Check className="w-5 h-5 shrink-0 text-green-700" />
+            <div>
+              <div className="font-bold uppercase tracking-wider">OPERAÇÃO REALIZADA COM SUCESSO!</div>
+              <div className="mt-0.5">
+                Artigo gravado e publicado no acervo. Redirecionando para o painel...
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Formulário */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Linha 1: Título, Natureza da Publicação e Categoria */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="md:col-span-6 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                TÍTULO PRINCIPAL (MANCHETE)*:
+              </label>
+              <input
+                type="text"
+                required
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="Ex: A INSURREIÇÃO POPULAR E O COMITÊ DE NATAL"
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-3 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                NATUREZA / SELO*:
+              </label>
+              <select
+                value={publicationType}
+                onChange={(e) => setPublicationType(e.target.value as PublicationType)}
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs bg-white focus:ring-2 focus:ring-rev-red outline-none"
+              >
+                {PUBLICATION_TYPES.map((pt) => (
+                  <option key={pt} value={pt}>
+                    {pt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-3 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                CATEGORIA EDITORIAL*:
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as ArticleCategory)}
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs bg-white focus:ring-2 focus:ring-rev-red outline-none"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Linha 2: Subtítulo e Slug */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="md:col-span-8 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                SUBTÍTULO / LINHA FINA (COR VERMELHA #C81E1E):
+              </label>
+              <input
+                type="text"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                placeholder="Ex: Documentos históricos dos sargentos sublevados no 21º Batalhão..."
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+              />
+            </div>
+
+            <div className="md:col-span-4 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                SLUG DE URL (/artigo/[slug]):
+              </label>
+              <input
+                type="text"
+                required
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder="a-insurreicao-popular"
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Linha 3: Autor, Tempo de Leitura Calculado e Imagem */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="md:col-span-4 space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                  AUTOR / ARTICULISTA:
+                </label>
+                <Link
+                  href="/admin/autores"
+                  className="text-[10px] font-mono text-rev-red hover:underline uppercase inline-flex items-center gap-1 font-bold"
+                  target="_blank"
+                >
+                  <UserPlus className="w-3 h-3" />
+                  <span>GERENCIAR</span>
+                </Link>
+              </div>
+              <select
+                value={authorId}
+                onChange={(e) => setAuthorId(e.target.value)}
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs bg-white focus:ring-2 focus:ring-rev-red outline-none"
+              >
+                {authors.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Cálculo Automático do Tempo de Leitura (Somente Leitura) */}
+            <div className="md:col-span-3 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-rev-red" />
+                <span>LEITURA (CALCULADO):</span>
+              </label>
+              <div className="px-3 py-2.5 border border-rev-black bg-neutral-100 font-mono text-xs text-rev-black flex items-center justify-between">
+                <span className="font-bold text-rev-red">{readingTimeMinutes} MIN</span>
+                <span className="text-[10px] text-neutral-500">({wordCount} palavras)</span>
+              </div>
+            </div>
+
+            <div className="md:col-span-5 space-y-1">
+              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+                URL DA IMAGEM DE CAPA:
+              </label>
+              <input
+                type="text"
+                value={coverImageUrl}
+                onChange={(e) => setCoverImageUrl(e.target.value)}
+                placeholder="https://..."
+                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+              LEGENDA DA CAPA (CRÉDITOS / FONTE HISTÓRICA):
+            </label>
+            <input
+              type="text"
+              value={coverCaption}
+              onChange={(e) => setCoverCaption(e.target.value)}
+              placeholder="Ex: Registro do Quartel do 21º BC, novembro de 1935."
+              className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+            />
+          </div>
+
+          {/* Resumo / Excerpt */}
+          <div className="space-y-1">
+            <label className="text-xs font-mono font-bold uppercase text-rev-black block">
+              RESUMO EXECUTIVO (EXCERPT)*:
+            </label>
+            <textarea
+              required
+              rows={2}
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              placeholder="Síntese concisa das teses e premissas do texto..."
+              className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
+            />
+          </div>
+
+          {/* Abas Editor / Preview */}
+          <div className="border border-rev-black bg-white shadow-[4px_4px_0px_#111111]">
+            <div className="flex items-center justify-between border-b border-rev-black bg-neutral-100 px-4 py-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('editor')}
+                  className={`btn-brutalist !py-1 !px-3 !text-[11px] ${
+                    activeTab === 'editor' ? '!bg-rev-black !text-white' : ''
+                  }`}
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>CÓDIGO MARKDOWN</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('preview')}
+                  className={`btn-brutalist !py-1 !px-3 !text-[11px] ${
+                    activeTab === 'preview' ? '!bg-rev-black !text-white' : ''
+                  }`}
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>PRÉ-VISUALIZAÇÃO</span>
+                </button>
+              </div>
+
+              <span className="text-[10px] font-mono text-neutral-500">
+                TEMPO ESTIMADO: {readingTimeMinutes} MIN ({wordCount} PALAVRAS)
+              </span>
+            </div>
+
+            <div className="p-4">
+              {activeTab === 'editor' ? (
+                <textarea
+                  rows={14}
+                  required
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="w-full p-3 font-mono text-xs focus:outline-none focus:ring-0 leading-relaxed border border-neutral-200"
+                />
+              ) : (
+                <div className="p-6 bg-neutral-50 border border-neutral-200 max-w-[68ch] mx-auto font-mono text-xs leading-relaxed space-y-4">
+                  <div className="font-display font-black text-xl uppercase text-rev-black">
+                    {title || 'TÍTULO DO ARTIGO'}
+                  </div>
+                  {subtitle && (
+                    <div className="font-mono text-rev-red font-bold">{subtitle}</div>
+                  )}
+                  <div className="whitespace-pre-wrap text-neutral-800">{content}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Botão de Envio */}
+          <div className="flex items-center justify-end gap-4 pt-4">
+            <Link href="/admin" className="text-xs font-mono text-neutral-600 hover:underline">
+              Cancelar
+            </Link>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-brutalist !bg-rev-red !text-white hover:!bg-rev-black !px-6 !py-3 !text-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {submitting ? (
+                <>
+                  <Check className="w-4 h-4 animate-spin" />
+                  <span>SALVANDO DOCUMENTO NO BANCO...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>
+                    {mode === 'edit'
+                      ? 'SALVAR ALTERAÇÕES NO ACERVO →'
+                      : 'SALVAR & PUBLICAR NO ACERVO →'}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

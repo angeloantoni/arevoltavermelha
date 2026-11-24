@@ -288,10 +288,15 @@ export function getArticles(): Article[] {
   }));
 }
 
-export function getHeroArticles(): Article[] {
-  return getArticles()
-    .filter((a) => a.is_hero_featured)
-    .sort((a, b) => (a.hero_order || 0) - (b.hero_order || 0));
+export function getHeroArticles(articles?: Article[]): Article[] {
+  const list = articles || getArticles();
+  return [...list]
+    .sort(
+      (a, b) =>
+        new Date(b.created_at || b.published_at).getTime() -
+        new Date(a.created_at || a.published_at).getTime()
+    )
+    .slice(0, 4);
 }
 
 export function getArticleBySlug(slug: string): Article | undefined {

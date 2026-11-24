@@ -4,7 +4,7 @@ import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, ArrowRight, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Lock, ArrowRight, AlertCircle, ArrowLeft } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
@@ -70,7 +70,7 @@ function LoginForm() {
       )}
 
       {/* Formulário */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
         <div>
           <label className="block text-xs font-bold uppercase text-rev-black mb-1">
             E-MAIL DO EDITOR:
@@ -78,9 +78,9 @@ function LoginForm() {
           <input
             type="email"
             required
+            autoComplete="off"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@revoltavermelha.com.br"
             className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none bg-neutral-50"
           />
         </div>
@@ -92,25 +92,11 @@ function LoginForm() {
           <input
             type="password"
             required
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
             className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none bg-neutral-50"
           />
-        </div>
-
-        {/* Caixa explicativa de credenciais padrão */}
-        <div className="p-3 bg-neutral-100 border border-neutral-300 text-[11px] text-neutral-700 space-y-1">
-          <div className="font-bold flex items-center gap-1 text-rev-black">
-            <ShieldCheck className="w-3.5 h-3.5 text-rev-red" />
-            <span>CREDENCIAIS DE DEMONSTRAÇÃO:</span>
-          </div>
-          <div className="text-neutral-600 font-mono">
-            E-mail: <code className="bg-white px-1 py-0.5 border border-neutral-300">admin@revoltavermelha.com.br</code>
-          </div>
-          <div className="text-neutral-600 font-mono">
-            Senha: <code className="bg-white px-1 py-0.5 border border-neutral-300">revolta1935</code>
-          </div>
         </div>
 
         <button

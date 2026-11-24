@@ -4,7 +4,6 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Clock, ArrowRight, X } from 'lucide-react';
-import { searchArticles } from '@/lib/data';
 import { ArticleCategory, Article } from '@/lib/types';
 
 const CATEGORIES: (ArticleCategory | 'TODOS')[] = [
@@ -23,12 +22,37 @@ function BuscaContent() {
 
   const [query, setQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState<ArticleCategory | 'TODOS'>('TODOS');
+  const [articles, setArticles] = useState<Article[]>([]);
   const [results, setResults] = useState<Article[]>([]);
 
   useEffect(() => {
-    const res = searchArticles(query, selectedCategory);
-    setResults(res);
-  }, [query, selectedCategory]);
+    fetch('/api/articles')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setArticles(data);
+        }
+      })
+      .catch((err) => console.error('Erro ao buscar acervo:', err));
+  }, []);
+
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = articles.filter((art) => {
+      const matchesCat =
+        !selectedCategory || selectedCategory === 'TODOS' || art.category === selectedCategory;
+      if (!matchesCat) return false;
+      if (!q) return true;
+      return (
+        art.title.toLowerCase().includes(q) ||
+        art.subtitle?.toLowerCase().includes(q) ||
+        art.excerpt.toLowerCase().includes(q) ||
+        art.publication_type.toLowerCase().includes(q) ||
+        art.author?.name.toLowerCase().includes(q)
+      );
+    });
+    setResults(filtered);
+  }, [query, selectedCategory, articles]);
 
   return (
     <div className="w-full bg-rev-white min-h-screen py-12">

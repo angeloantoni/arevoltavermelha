@@ -1,17 +1,20 @@
 import React from 'react';
 import Link from 'next/link';
-import { getArticles } from '@/lib/data';
-import { Plus, CheckCircle, ExternalLink, FileText, Users } from 'lucide-react';
+import { getAllArticles } from '@/lib/serverArticles';
+import { Plus, CheckCircle, FileText, Users } from 'lucide-react';
 import LogoutButton from './LogoutButton';
+import AdminArticlesTable from '@/components/AdminArticlesTable';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata = {
   title: 'Painel Editorial CMS — A Revolta Vermelha',
   description: 'Gestão de publicações, ensaios e traduções do acervo.',
 };
 
-export default function AdminDashboardPage() {
-  const articles = getArticles();
+export default async function AdminDashboardPage() {
+  const articles = await getAllArticles();
 
   return (
     <div className="w-full bg-rev-white min-h-screen py-12">
@@ -75,13 +78,13 @@ export default function AdminDashboardPage() {
           <div className="border border-rev-black p-4 bg-white shadow-[2px_2px_0px_#111111]">
             <span className="text-[10px] font-mono text-neutral-500 uppercase block">STATUS DO BANCO</span>
             <span className="font-display font-black text-base text-green-700 flex items-center gap-1.5 mt-2">
-              <CheckCircle className="w-4 h-4" /> ATIVO (HÍBRIDO)
+              <CheckCircle className="w-4 h-4" /> ATIVO (PERSISTENTE)
             </span>
           </div>
           <div className="border border-rev-black p-4 bg-white shadow-[2px_2px_0px_#111111]">
-            <span className="text-[10px] font-mono text-neutral-500 uppercase block">DESTAQUES DE HERO</span>
+            <span className="text-[10px] font-mono text-neutral-500 uppercase block">DESTAQUES RECENTES</span>
             <span className="font-display font-black text-3xl text-rev-red">
-              {articles.filter((a) => a.is_hero_featured).length}
+              {Math.min(articles.length, 4)}
             </span>
           </div>
           <div className="border border-rev-black p-4 bg-white shadow-[2px_2px_0px_#111111]">
@@ -92,70 +95,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Tabela Brutalista de Artigos */}
-        <div className="border border-rev-black bg-white overflow-x-auto shadow-[4px_4px_0px_#111111]">
-          <table className="w-full text-left font-mono text-xs border-collapse">
-            <thead>
-              <tr className="bg-rev-black text-white uppercase text-[11px] border-b border-rev-black">
-                <th className="py-3 px-4">TÍTULO & SLUG</th>
-                <th className="py-3 px-4">SELO / TIPO</th>
-                <th className="py-3 px-4">CATEGORIA</th>
-                <th className="py-3 px-4">AUTOR</th>
-                <th className="py-3 px-4">LEITURA</th>
-                <th className="py-3 px-4">STATUS</th>
-                <th className="py-3 px-4 text-right">AÇÕES</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200">
-              {articles.map((art) => (
-                <tr key={art.id} className="hover:bg-neutral-50 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-rev-black">{art.title}</div>
-                    <div className="text-[10px] text-neutral-500">slug: /{art.slug}</div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-0.5 font-bold uppercase text-[9px] border border-rev-black ${
-                        art.publication_type === 'ARTIGO EDITORIAL'
-                          ? 'bg-rev-red text-white'
-                          : 'bg-white text-rev-black'
-                      }`}
-                    >
-                      {art.publication_type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="bg-neutral-200 text-neutral-800 px-2 py-0.5 font-bold uppercase text-[10px]">
-                      {art.category}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-neutral-700">
-                    {art.author?.name || 'CONSELHO EDITORIAL'}
-                  </td>
-
-                  <td className="py-3 px-4 text-neutral-600">
-                    {art.reading_time_minutes} min
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="text-green-700 font-bold uppercase flex items-center gap-1">
-                      <span className="w-2 h-2 bg-green-600 rounded-none inline-block" />
-                      {art.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <Link
-                      href={`/artigo/${art.slug}`}
-                      className="btn-brutalist !py-1 !px-2.5 !text-[11px] inline-flex items-center gap-1"
-                    >
-                      <span>LER</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {/* Tabela Interativa de Artigos com Ações (LER, EDITAR, EXCLUIR) */}
+        <AdminArticlesTable initialArticles={articles} />
       </div>
     </div>
   );
