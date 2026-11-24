@@ -401,7 +401,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
             onChange={setCoverImageUrl}
             folder="artigos"
             aspectRatio="video"
-            helpText="Envie um arquivo de imagem do dispositivo para a subpasta 'imagens_artigos' do bucket 'midia' no Supabase Storage ou informe uma URL externa."
+            helpText="Envie um arquivo de imagem do dispositivo para a subpasta 'imagens_artigos' do bucket 'Midia' no Supabase Storage ou informe uma URL externa."
           />
 
           <div className="space-y-1">

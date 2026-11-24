@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Obtém o cliente Supabase para uploads no servidor.
  * Se houver SUPABASE_SERVICE_ROLE_KEY configurada (ex: na Vercel),
- * utiliza para contornar políticas restritivas de RLS no bucket público 'midia'.
+ * utiliza para contornar políticas restritivas de RLS no bucket público 'Midia'.
  */
 function getStorageClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -56,13 +56,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. O bucket é sempre 'midia', categorizado pelas subpastas 'imagens_artigos/' e 'imagens_autores/'
+    // 1. O bucket é sempre 'Midia', categorizado pelas subpastas 'imagens_artigos/' e 'imagens_autores/'
     const isAuthor =
       folder === 'autores' ||
       folder === 'imagens_autores' ||
       Boolean(slug && folder !== 'artigos' && folder !== 'imagens_artigos');
 
-    // 2. Determina o caminho com a subpasta exata dentro do bucket 'midia'
+    // 2. Determina o caminho com a subpasta exata dentro do bucket 'Midia'
     let filePath: string;
     let contentType = file.type || 'image/jpeg';
 
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 3. Envia diretamente para o bucket 'midia' com upsert: true
+    // 3. Envia diretamente para o bucket 'Midia' com upsert: true
     const { data: uploadData, error: uploadError } = await storageClient.storage
-      .from('midia')
+      .from('Midia')
       .upload(filePath, buffer, {
         contentType,
         cacheControl: '3600',
@@ -96,21 +96,21 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error("Erro ao enviar imagem para o bucket 'midia':", uploadError);
+      console.error("Erro ao enviar imagem para o bucket 'Midia':", uploadError);
       return NextResponse.json(
-        { error: `Erro no Supabase Storage (midia): ${uploadError.message}` },
+        { error: `Erro no Supabase Storage (Midia): ${uploadError.message}` },
         { status: 500 }
       );
     }
 
-    // 4. Obtém a URL pública do bucket 'midia'
+    // 4. Obtém a URL pública do bucket 'Midia'
     const { data: publicUrlData } = storageClient.storage
-      .from('midia')
+      .from('Midia')
       .getPublicUrl(filePath);
 
     if (!publicUrlData?.publicUrl) {
       return NextResponse.json(
-        { error: "Não foi possível gerar a URL pública no bucket 'midia'." },
+        { error: "Não foi possível gerar a URL pública no bucket 'Midia'." },
         { status: 500 }
       );
     }
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       url: publicUrlData.publicUrl,
       path: filePath,
-      bucket: 'midia',
+      bucket: 'Midia',
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro ao processar upload do arquivo';

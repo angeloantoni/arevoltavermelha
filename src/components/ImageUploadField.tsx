@@ -70,11 +70,11 @@ export default function ImageUploadField({
     try {
       const contentType = fileOrBlob.type || (isAuthor ? 'image/jpeg' : 'image/jpeg');
 
-      // 1. Tentar upload direto no bucket 'midia' do Supabase Storage
+      // 1. Tentar upload direto no bucket 'Midia' do Supabase Storage
       if (isSupabaseConfigured && supabase) {
         try {
           const { data, error: uploadError } = await supabase.storage
-            .from('midia')
+            .from('Midia')
             .upload(filePath, fileOrBlob, {
               contentType,
               cacheControl: '3600',
@@ -83,7 +83,7 @@ export default function ImageUploadField({
 
           if (!uploadError && data) {
             const { data: publicData } = supabase.storage
-              .from('midia')
+              .from('Midia')
               .getPublicUrl(filePath);
 
             if (publicData?.publicUrl) {
@@ -93,7 +93,7 @@ export default function ImageUploadField({
               return true;
             }
           } else if (uploadError) {
-            console.warn('Supabase Storage direto falhou no bucket midia, tentando rota da API:', uploadError.message);
+            console.warn('Supabase Storage direto falhou no bucket Midia, tentando rota da API:', uploadError.message);
           }
         } catch (supabaseErr) {
           console.warn('Falha na tentativa direta do Supabase:', supabaseErr);
@@ -107,7 +107,7 @@ export default function ImageUploadField({
 
       const formData = new FormData();
       formData.append('file', fileToSend);
-      formData.append('bucket', 'midia');
+      formData.append('bucket', 'Midia');
       formData.append('filePath', filePath);
       formData.append('folder', isAuthor ? 'imagens_autores' : 'imagens_artigos');
       if (targetSlug) formData.append('slug', targetSlug);

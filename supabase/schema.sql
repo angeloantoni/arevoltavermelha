@@ -130,28 +130,28 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 5. BUCKET DE ARMAZENAMENTO PÚBLICO (MIDIA: SUBPASTAS IMAGENS_ARTIGOS/ E IMAGENS_AUTORES/)
+-- 5. BUCKET DE ARMAZENAMENTO PÚBLICO (Midia: SUBPASTAS IMAGENS_ARTIGOS/ E IMAGENS_AUTORES/)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('midia', 'midia', true)
+VALUES ('Midia', 'Midia', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Leitura pública dos arquivos do bucket midia
-CREATE POLICY "Acesso público aos arquivos do bucket midia"
+-- Leitura pública dos arquivos do bucket Midia
+CREATE POLICY "Acesso público aos arquivos do bucket Midia"
   ON storage.objects FOR SELECT
-  USING (bucket_id = 'midia');
+  USING (bucket_id = 'Midia');
 
--- Upload permitido no bucket midia
-CREATE POLICY "Upload permitido no bucket midia"
+-- Upload permitido no bucket Midia
+CREATE POLICY "Upload permitido no bucket Midia"
   ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'midia');
+  WITH CHECK (bucket_id = 'Midia');
 
--- Atualização permitida no bucket midia
-CREATE POLICY "Atualização permitida no bucket midia"
+-- Atualização permitida no bucket Midia
+CREATE POLICY "Atualização permitida no bucket Midia"
   ON storage.objects FOR UPDATE
-  USING (bucket_id = 'midia')
-  WITH CHECK (bucket_id = 'midia');
+  USING (bucket_id = 'Midia')
+  WITH CHECK (bucket_id = 'Midia');
 
--- Exclusão permitida no bucket midia
-CREATE POLICY "Exclusão permitida no bucket midia"
+-- Exclusão permitida no bucket Midia
+CREATE POLICY "Exclusão permitida no bucket Midia"
   ON storage.objects FOR DELETE
-  USING (bucket_id = 'midia');
+  USING (bucket_id = 'Midia');
