@@ -74,7 +74,7 @@ export default function ImageUploadField({
             .upload(filePath, fileOrBlob, {
               contentType,
               cacheControl: '3600',
-              upsert: false,
+              upsert: true,
             });
 
           if (!uploadError && data) {
@@ -104,6 +104,8 @@ export default function ImageUploadField({
       const formData = new FormData();
       formData.append('file', fileToSend);
       if (folder) formData.append('folder', folder);
+      if (filePath) formData.append('filePath', filePath);
+      if (targetSlug) formData.append('slug', targetSlug);
 
       const res = await fetch('/api/upload', {
         method: 'POST',
