@@ -7,6 +7,7 @@ import { Author } from '@/lib/types';
 import { CONSELHO_EDITORIAL_UUID } from '@/lib/uuid';
 import { Plus, Users, Edit2, Trash2, X, Check, FileText, BookOpen, AlertCircle, Loader2 } from 'lucide-react';
 import LogoutButton from '../LogoutButton';
+import ImageUploadField from '@/components/ImageUploadField';
 
 const ROLES = [
   'Autor',
@@ -345,18 +346,14 @@ export default function AdminAutoresPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block font-bold uppercase text-rev-black mb-1">
-                    URL DA FOTO DE PERFIL:
-                  </label>
-                  <input
-                    type="text"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://... ou deixe em branco para /logo.webp"
-                    className="w-full px-3 py-2 border border-rev-black focus:ring-2 focus:ring-rev-red outline-none"
-                  />
-                </div>
+                <ImageUploadField
+                  label="FOTO DE PERFIL / AVATAR (P&B):"
+                  value={avatarUrl}
+                  onChange={setAvatarUrl}
+                  folder="autores"
+                  aspectRatio="square"
+                  helpText="Envie uma foto do dispositivo (quadrada) para o Supabase Storage ou informe uma URL externa."
+                />
 
                 <div>
                   <label className="block font-bold uppercase text-rev-black mb-1">

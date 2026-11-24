@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Eye, Edit3, Check, UserPlus, AlertCircle, Clock } from
 import { ArticleCategory, PublicationType, Article, Author } from '@/lib/types';
 import { calculateReadingTime } from '@/lib/readingTime';
 import { CONSELHO_EDITORIAL_UUID, isValidUuid, ensureValidUuid } from '@/lib/uuid';
+import ImageUploadField from '@/components/ImageUploadField';
 
 const CATEGORIES: ArticleCategory[] = [
   'EDITORIAL',
@@ -301,7 +302,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
 
           {/* Linha 3: Autor, Tempo de Leitura Calculado e Imagem */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-4 space-y-1">
+            <div className="md:col-span-7 space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-mono font-bold uppercase text-rev-black block">
                   AUTOR / ARTICULISTA:
@@ -335,7 +336,7 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
             </div>
 
             {/* Cálculo Automático do Tempo de Leitura (Somente Leitura) */}
-            <div className="md:col-span-3 space-y-1">
+            <div className="md:col-span-5 space-y-1">
               <label className="text-xs font-mono font-bold uppercase text-rev-black flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5 text-rev-red" />
                 <span>LEITURA (CALCULADO):</span>
@@ -345,20 +346,17 @@ export default function ArticleForm({ initialArticle, mode }: ArticleFormProps) 
                 <span className="text-[10px] text-neutral-500">({wordCount} palavras)</span>
               </div>
             </div>
-
-            <div className="md:col-span-5 space-y-1">
-              <label className="text-xs font-mono font-bold uppercase text-rev-black block">
-                URL DA IMAGEM DE CAPA:
-              </label>
-              <input
-                type="text"
-                value={coverImageUrl}
-                onChange={(e) => setCoverImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3 py-2.5 border border-rev-black font-mono text-xs focus:ring-2 focus:ring-rev-red outline-none"
-              />
-            </div>
           </div>
+
+          {/* Upload Direto da Imagem de Capa */}
+          <ImageUploadField
+            label="IMAGEM DE CAPA DO ARTIGO (P&B / ALTO CONTRASTE)*:"
+            value={coverImageUrl}
+            onChange={setCoverImageUrl}
+            folder="artigos"
+            aspectRatio="video"
+            helpText="Envie um arquivo de imagem do dispositivo para o bucket 'midia' do Supabase Storage ou informe uma URL externa."
+          />
 
           <div className="space-y-1">
             <label className="text-xs font-mono font-bold uppercase text-rev-black block">

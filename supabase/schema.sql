@@ -124,5 +124,26 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- 5. BUCKET DE ARMAZENAMENTO PÚBLICO (MIDIA) E POLÍTICAS DE STORAGE
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('midia', 'midia', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
 
+-- Leitura pública dos arquivos do bucket midia
+CREATE POLICY "Acesso público aos arquivos do bucket midia"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'midia');
 
+-- Upload permitido para usuários autenticados (ou anon se configurado)
+CREATE POLICY "Upload permitido no bucket midia"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'midia');
+
+CREATE POLICY "Atualização permitida no bucket midia"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'midia')
+  WITH CHECK (bucket_id = 'midia');
+
+CREATE POLICY "Exclusão permitida no bucket midia"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'midia');

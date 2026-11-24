@@ -42,13 +42,20 @@ export default function ShareArticle({ article }: ShareArticleProps) {
     window.open(url, '_blank');
   };
 
-  // Helper para carregar imagens de forma segura com crossOrigin
+  // Helper para carregar imagens de forma segura com crossOrigin antes de atribuir src
   const loadImage = (src: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      // Sempre definir crossOrigin antes de atribuir src para evitar tainted canvas
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`Falha ao carregar imagem: ${src}`));
+      img.onerror = () => {
+        // Fallback sem crossOrigin se o host não enviar cabeçalhos CORS
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => resolve(fallbackImg);
+        fallbackImg.onerror = () => reject(new Error(`Falha ao carregar imagem: ${src}`));
+        fallbackImg.src = src;
+      };
       img.src = src;
     });
   };
