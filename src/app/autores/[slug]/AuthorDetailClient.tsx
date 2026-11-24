@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Author, Article } from '@/lib/types';
 import { getStoredAuthors } from '@/lib/authorStore';
 import { ArrowLeft, Clock, ArrowRight, BookOpen } from 'lucide-react';
+import { getAuthorInitials } from '@/components/AuthorAvatar';
 
 interface AuthorDetailClientProps {
   initialAuthor?: Author;
@@ -78,19 +79,36 @@ export default function AuthorDetailClient({
             className={`md:col-span-4 relative aspect-square w-full border border-rev-black overflow-hidden ${
               author.avatar_url && author.avatar_url.includes('logo')
                 ? 'bg-white p-4'
-                : 'bg-neutral-300'
+                : 'bg-neutral-900'
             }`}
           >
-            <Image
-              src={author.avatar_url || '/logo.webp'}
-              alt={author.name}
-              fill
-              className={`${
-                author.avatar_url && author.avatar_url.includes('logo')
-                  ? 'object-contain p-2'
-                  : 'object-cover'
-              } filter grayscale contrast-125`}
-            />
+            {author.avatar_url ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={author.avatar_url}
+                alt={author.name}
+                className={`w-full h-full ${
+                  author.avatar_url.includes('logo')
+                    ? 'object-contain p-2'
+                    : 'object-cover'
+                } filter grayscale contrast-125`}
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : null}
+
+            {/* Fallback de iniciais apenas quando não houver foto salva */}
+            {!author.avatar_url && (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-neutral-900 text-white font-mono select-none p-6 text-center">
+                <span className="font-display font-black text-6xl text-neutral-100 tracking-wider">
+                  {getAuthorInitials(author.name)}
+                </span>
+                <span className="text-[11px] text-rev-red uppercase font-bold tracking-widest mt-3 border-t border-neutral-800 pt-1">
+                  QUADRO EDITORIAL
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="md:col-span-8 flex flex-col justify-between">

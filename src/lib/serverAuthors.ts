@@ -258,7 +258,7 @@ export async function createAuthor(payload: {
 
   const role = payload.role.trim();
   const bio = payload.bio?.trim() || '';
-  const avatar_url = payload.avatar_url?.trim() || '/logo.webp';
+  const avatar_url = payload.avatar_url?.trim() || (slug === 'conselho-editorial' ? '/logo.webp' : null);
 
   if (isSupabaseConfigured && supabase) {
     // Insere sem ID para o PostgreSQL gerar gen_random_uuid() nativamente
@@ -317,15 +317,18 @@ export async function updateAuthor(
   payload: Partial<Author>
 ): Promise<Author> {
   if (isSupabaseConfigured && supabase) {
+    const updateFields: Record<string, any> = {};
+    if (payload.name !== undefined) updateFields.name = payload.name;
+    if (payload.slug !== undefined) updateFields.slug = payload.slug;
+    if (payload.role !== undefined) updateFields.role = payload.role;
+    if (payload.bio !== undefined) updateFields.bio = payload.bio;
+    if (payload.avatar_url !== undefined) {
+      updateFields.avatar_url = payload.avatar_url?.trim() || null;
+    }
+
     const { error } = await supabase
       .from('authors')
-      .update({
-        name: payload.name,
-        slug: payload.slug,
-        role: payload.role,
-        bio: payload.bio,
-        avatar_url: payload.avatar_url,
-      })
+      .update(updateFields)
       .eq('id', id);
 
     if (error) {

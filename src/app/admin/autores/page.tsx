@@ -8,6 +8,7 @@ import { CONSELHO_EDITORIAL_UUID } from '@/lib/uuid';
 import { Plus, Users, Edit2, Trash2, X, Check, FileText, BookOpen, AlertCircle, Loader2 } from 'lucide-react';
 import LogoutButton from '../LogoutButton';
 import ImageUploadField from '@/components/ImageUploadField';
+import AuthorAvatar from '@/components/AuthorAvatar';
 
 const ROLES = [
   'Autor',
@@ -91,7 +92,7 @@ export default function AdminAutoresPage() {
         name: name.trim(),
         role,
         bio: bio.trim(),
-        avatar_url: avatarUrl.trim() || '/logo.webp',
+        avatar_url: avatarUrl.trim() || (name.toLowerCase().includes('conselho') ? '/logo.webp' : null),
       };
 
       const url = editingId ? `/api/authors/${editingId}` : '/api/authors';
@@ -242,14 +243,11 @@ export default function AdminAutoresPage() {
                   return (
                     <tr key={author.id} className="hover:bg-neutral-50 transition-colors">
                       <td className="py-3 px-4">
-                        <div className="w-9 h-9 relative border border-rev-black bg-neutral-100 overflow-hidden">
-                          <Image
-                            src={author.avatar_url || '/logo.webp'}
-                            alt={author.name}
-                            fill
-                            className="object-cover filter grayscale contrast-125"
-                          />
-                        </div>
+                        <AuthorAvatar
+                          name={author.name}
+                          avatarUrl={author.avatar_url}
+                          size="sm"
+                        />
                       </td>
                       <td className="py-3 px-4">
                         <div className="font-bold text-rev-black">{author.name}</div>

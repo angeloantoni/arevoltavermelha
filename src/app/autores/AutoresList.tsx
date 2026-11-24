@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuthors } from '@/lib/authorStore';
 import { Article } from '@/lib/types';
 import { BookOpen, ArrowRight } from 'lucide-react';
+import { getAuthorInitials } from '@/components/AuthorAvatar';
 
 export default function AutoresList() {
   const { authors } = useAuthors();
@@ -35,21 +36,39 @@ export default function AutoresList() {
             className="border border-rev-black bg-white flex flex-col justify-between group hover:border-rev-red transition-all shadow-[4px_4px_0px_#111111]"
           >
             <div>
-              {/* Foto do Autor em P&B */}
+              {/* Foto do Autor em P&B com Fallback Visual Construtivista */}
               <div
                 className={`relative aspect-[4/3] w-full overflow-hidden border-b border-rev-black ${
-                  author.avatar_url && author.avatar_url.includes('logo') ? 'bg-white p-4' : 'bg-neutral-200'
+                  author.avatar_url && author.avatar_url.includes('logo') ? 'bg-white p-4' : 'bg-neutral-900'
                 }`}
               >
-                <Image
-                  src={author.avatar_url || '/logo.webp'}
-                  alt={author.name}
-                  fill
-                  className={`${
-                    author.avatar_url && author.avatar_url.includes('logo') ? 'object-contain p-2' : 'object-cover'
-                  } filter grayscale contrast-125 group-hover:scale-105 transition-transform duration-300`}
-                />
-                <div className="absolute top-3 left-3">
+                {author.avatar_url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={author.avatar_url}
+                    alt={author.name}
+                    className={`w-full h-full ${
+                      author.avatar_url.includes('logo') ? 'object-contain p-2' : 'object-cover'
+                    } filter grayscale contrast-125 group-hover:scale-105 transition-transform duration-300`}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : null}
+
+                {/* Fallback de iniciais apenas quando não houver foto salva */}
+                {!author.avatar_url && (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-neutral-900 text-white font-mono select-none p-4 text-center">
+                    <span className="font-display font-black text-4xl sm:text-5xl text-neutral-100 tracking-wider">
+                      {getAuthorInitials(author.name)}
+                    </span>
+                    <span className="text-[10px] text-rev-red uppercase font-bold tracking-widest mt-2 border-t border-neutral-800 pt-1">
+                      QUADRO EDITORIAL
+                    </span>
+                  </div>
+                )}
+
+                <div className="absolute top-3 left-3 z-10">
                   <span className="bg-rev-black text-white text-[10px] font-mono font-bold uppercase px-2.5 py-1 border border-rev-black">
                     {author.role}
                   </span>

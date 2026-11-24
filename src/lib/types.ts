@@ -15,7 +15,7 @@ export interface Author {
   slug: string;
   role: string;
   bio: string;
-  avatar_url: string;
+  avatar_url?: string | null;
   articles_count?: number;
 }
 

@@ -8,6 +8,7 @@ import { Article } from '@/lib/types';
 import CiteButton from '@/components/CiteButton';
 import ShareArticle from '@/components/ShareArticle';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import AuthorAvatar from '@/components/AuthorAvatar';
 
 
 
@@ -320,14 +321,12 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
             {/* Ficha do Autor ao Final do Artigo */}
             {article.author && (
               <div className="mt-12 p-6 border-2 border-rev-black bg-neutral-100 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                <div className="relative w-20 h-20 flex-shrink-0 border border-rev-black overflow-hidden bg-white">
-                  <Image
-                    src={article.author.avatar_url || '/logo.webp'}
-                    alt={article.author.name}
-                    fill
-                    className="object-contain p-1 filter grayscale contrast-125"
-                  />
-                </div>
+                <AuthorAvatar
+                  name={article.author.name}
+                  avatarUrl={article.author.avatar_url}
+                  size="xl"
+                  className="w-20 h-20"
+                />
 
                 <div className="flex-1 text-center sm:text-left">
                   <span className="text-[10px] font-mono uppercase text-rev-red font-bold">
@@ -352,14 +351,12 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
             {/* Ficha do Tradutor ao Final do Artigo (se houver) */}
             {article.translator && (
               <div className="mt-4 p-6 border-2 border-rev-black bg-neutral-50 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-                <div className="relative w-16 h-16 flex-shrink-0 border border-rev-black overflow-hidden bg-white">
-                  <Image
-                    src={article.translator.avatar_url || '/logo.webp'}
-                    alt={article.translator.name}
-                    fill
-                    className="object-contain p-1 filter grayscale contrast-125"
-                  />
-                </div>
+                <AuthorAvatar
+                  name={article.translator.name}
+                  avatarUrl={article.translator.avatar_url}
+                  size="lg"
+                  className="w-16 h-16"
+                />
 
                 <div className="flex-1 text-center sm:text-left">
                   <span className="text-[10px] font-mono uppercase text-neutral-600 font-bold">

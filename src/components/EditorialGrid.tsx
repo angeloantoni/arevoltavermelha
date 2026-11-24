@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, Clock } from 'lucide-react';
 import { Article, ArticleCategory } from '@/lib/types';
+import AuthorAvatar from '@/components/AuthorAvatar';
 
 interface EditorialGridProps {
   initialArticles: Article[];
@@ -194,9 +195,16 @@ export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
 
                 {/* Rodapé do Card: Autor e Acesso Direto */}
                 <div className="p-5 pt-0 mt-2 border-t border-neutral-100 flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-neutral-700 uppercase font-semibold truncate max-w-[190px]">
-                    {art.author?.name || 'CONSELHO EDITORIAL'}
-                  </span>
+                  <div className="flex items-center gap-2 truncate max-w-[210px]">
+                    <AuthorAvatar
+                      name={art.author?.name || 'Conselho Editorial'}
+                      avatarUrl={art.author?.avatar_url}
+                      size="xs"
+                    />
+                    <span className="text-[11px] font-mono text-neutral-700 uppercase font-semibold truncate">
+                      {art.author?.name || 'CONSELHO EDITORIAL'}
+                    </span>
+                  </div>
 
                   <Link
                     href={`/artigo/${art.slug}`}

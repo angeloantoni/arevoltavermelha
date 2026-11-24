@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ExternalLink, Edit2, Trash2, Search, Loader2 } from 'lucide-react';
 import { Article } from '@/lib/types';
 import { isValidUuid } from '@/lib/uuid';
+import AuthorAvatar from '@/components/AuthorAvatar';
 
 interface AdminArticlesTableProps {
   initialArticles: Article[];
@@ -149,12 +150,21 @@ export default function AdminArticlesTable({ initialArticles }: AdminArticlesTab
                       </span>
                     </td>
                     <td className="py-3 px-4 text-neutral-700">
-                      <div>{art.author?.name || 'CONSELHO EDITORIAL'}</div>
-                      {art.translator && (
-                        <div className="text-[10px] text-neutral-500 font-normal">
-                          Trad: {art.translator.name}
+                      <div className="flex items-center gap-2">
+                        <AuthorAvatar
+                          name={art.author?.name || 'Conselho Editorial'}
+                          avatarUrl={art.author?.avatar_url}
+                          size="xs"
+                        />
+                        <div>
+                          <div className="font-bold text-rev-black">{art.author?.name || 'CONSELHO EDITORIAL'}</div>
+                          {art.translator && (
+                            <div className="text-[10px] text-neutral-500 font-normal">
+                              Trad: {art.translator.name}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-neutral-600">
                       {art.reading_time_minutes} min

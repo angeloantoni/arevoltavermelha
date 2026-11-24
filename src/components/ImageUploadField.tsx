@@ -48,8 +48,8 @@ export default function ImageUploadField({
     setError(null);
     setSuccessMsg(null);
 
-    const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '');
-    const fileName = `${folder ? `${folder}/` : ''}${Date.now()}-${cleanName}`;
+    const cleanName = file.name.toLowerCase().replace(/[^a-z0-9.-]/g, '-') || 'imagem.jpg';
+    const filePath = `${folder ? `${folder}/` : ''}${Date.now()}-${cleanName}`;
 
     try {
       // 1. Tentar upload direto no Supabase Storage (bucket 'midia')
@@ -57,7 +57,8 @@ export default function ImageUploadField({
         try {
           const { data, error: uploadError } = await supabase.storage
             .from('midia')
-            .upload(fileName, file, {
+            .upload(filePath, file, {
+              contentType: file.type || 'image/jpeg',
               cacheControl: '3600',
               upsert: false,
             });
@@ -65,7 +66,7 @@ export default function ImageUploadField({
           if (!uploadError && data) {
             const { data: publicData } = supabase.storage
               .from('midia')
-              .getPublicUrl(fileName);
+              .getPublicUrl(filePath);
 
             if (publicData?.publicUrl) {
               onChange(publicData.publicUrl);
@@ -220,12 +221,15 @@ export default function ImageUploadField({
                   : 'w-full max-w-sm aspect-[16/10]'
               }`}
             >
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={value}
                 alt="Preview da imagem"
-                fill
-                className="object-cover filter grayscale contrast-125"
-                unoptimized
+                className="w-full h-full object-cover filter grayscale contrast-125"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                  setError('Aviso: Não foi possível carregar a imagem desta URL externa.');
+                }}
               />
             </div>
             <div className="text-[10px] text-neutral-500 truncate mt-1 max-w-md">
