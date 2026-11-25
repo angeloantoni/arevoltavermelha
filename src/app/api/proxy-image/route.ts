@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     let parsedUrl: URL;
     try {
-      parsedUrl = new URL(imageUrl);
+      parsedUrl = imageUrl.startsWith('/') ? new URL(imageUrl, request.url) : new URL(imageUrl);
     } catch {
       return NextResponse.json({ error: 'URL inválida' }, { status: 400 });
     }
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Requisição server-side para contornar restrições de CORS no canvas do cliente
-    const response = await fetch(imageUrl, {
+    const response = await fetch(parsedUrl.toString(), {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

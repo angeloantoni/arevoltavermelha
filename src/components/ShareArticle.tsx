@@ -6,9 +6,10 @@ import { Article } from '@/lib/types';
 
 interface ShareArticleProps {
   article: Article;
+  imageUrl?: string;
 }
 
-export default function ShareArticle({ article }: ShareArticleProps) {
+export default function ShareArticle({ article, imageUrl }: ShareArticleProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -501,83 +502,117 @@ export default function ShareArticle({ article }: ShareArticleProps) {
 
     // DESENHAR FOTOGRAFIA DE CAPA
     const rawCoverUrl =
+      imageUrl ||
+      article.cover_image_url ||
       (article as any).cover_image ||
       (article as any).coverImage ||
       (article as any).image_url ||
-      (article as any).image ||
-      article.cover_image_url;
+      (article as any).image;
 
     const coverUrl = typeof rawCoverUrl === 'string' ? rawCoverUrl.trim() : '';
 
     let coverRendered = false;
     if (coverUrl) {
       let objectUrl: string | null = null;
+      let loadedImg: HTMLImageElement | null = null;
+      let cleanupFn: (() => void) | null = null;
+
+      // 1ª Tentativa: Carregamento seguro via rota de proxy interna /api/proxy-image
       try {
-        // Carregamento da capa via rota interna de proxy /api/proxy-image?url=...
         const proxyUrl = coverUrl.startsWith('/') && !coverUrl.startsWith('//')
           ? coverUrl
           : `/api/proxy-image?url=${encodeURIComponent(coverUrl)}`;
 
         const response = await fetch(proxyUrl);
-        if (!response.ok) {
-          throw new Error(`Proxy /api/proxy-image retornou status ${response.status}`);
-        }
+        if (response.ok) {
+          const blob = await response.blob();
+          objectUrl = URL.createObjectURL(blob);
 
-        const blob = await response.blob();
-        objectUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.src = objectUrl;
 
-        const coverImg = new Image();
-        coverImg.src = objectUrl;
-
-        // Aguarda a decodificação completa da imagem antes de pintar no Canvas
-        if (typeof coverImg.decode === 'function') {
-          await coverImg.decode();
-        } else {
-          await new Promise((resolve, reject) => {
-            (coverImg as HTMLImageElement).onload = resolve;
-            (coverImg as HTMLImageElement).onerror = reject;
-          });
-        }
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(photoX, photoY, photoW, photoH);
-        ctx.clip();
-        ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
-
-        // Ajuste proporcional 'object-fit: cover' sem distorção nem esticamento
-        drawImageCover(ctx, coverImg, photoX, photoY, photoW, photoH);
-
-        ctx.filter = 'none';
-        ctx.restore();
-        coverRendered = true;
-      } catch (err) {
-        console.warn('Tentativa primária via /api/proxy-image falhou, tentando fallback loadImageSafely:', err);
-        try {
-          const { img: fallbackImg, cleanup } = await loadImageSafely(coverUrl);
-          try {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(photoX, photoY, photoW, photoH);
-            ctx.clip();
-            ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
-            drawImageCover(ctx, fallbackImg, photoX, photoY, photoW, photoH);
-            ctx.filter = 'none';
-            ctx.restore();
-            coverRendered = true;
-          } finally {
-            cleanup();
+          if (typeof img.decode === 'function') {
+            await img.decode();
+          } else {
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = reject;
+            });
           }
-        } catch (fallbackErr) {
-          console.warn('Falha definitiva ao carregar foto de capa no Stories:', fallbackErr);
+
+          if (img.complete && img.naturalWidth > 0) {
+            loadedImg = img;
+          }
+        } else {
+          console.warn(`Proxy /api/proxy-image retornou status ${response.status}`);
         }
-      } finally {
-        if (objectUrl) {
-          URL.revokeObjectURL(objectUrl);
+      } catch (proxyErr) {
+        console.warn('Tentativa primária via /api/proxy-image falhou, tentando fallback direto:', proxyErr);
+      }
+
+      // 2ª Tentativa: Fallback direto com crossOrigin = 'anonymous'
+      if (!loadedImg) {
+        try {
+          const directImg = new Image();
+          directImg.crossOrigin = 'anonymous';
+          directImg.src = coverUrl;
+
+          if (typeof directImg.decode === 'function') {
+            await directImg.decode();
+          } else {
+            await new Promise<void>((resolve, reject) => {
+              directImg.onload = () => resolve();
+              directImg.onerror = reject;
+            });
+          }
+
+          if (directImg.complete && directImg.naturalWidth > 0) {
+            loadedImg = directImg;
+          }
+        } catch (directErr) {
+          console.warn('Fallback direto com crossOrigin falhou, tentando recurso safe:', directErr);
+          try {
+            const { img: safeImg, cleanup } = await loadImageSafely(coverUrl);
+            if (safeImg.complete && safeImg.naturalWidth > 0) {
+              loadedImg = safeImg;
+              cleanupFn = cleanup;
+            }
+          } catch (safeErr) {
+            console.warn('Falha definitiva ao carregar foto de capa no Stories:', safeErr);
+          }
         }
+      }
+
+      // 3. Desenho no Canvas somente após validação de carregamento completo
+      if (loadedImg && loadedImg.complete && loadedImg.naturalWidth > 0) {
+        try {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(photoX, photoY, photoW, photoH);
+          ctx.clip();
+          ctx.filter = 'grayscale(100%) contrast(135%) brightness(95%)';
+
+          // Ajuste proporcional 'object-fit: cover' sem distorção nem esticamento
+          drawImageCover(ctx, loadedImg, photoX, photoY, photoW, photoH);
+
+          ctx.filter = 'none';
+          ctx.restore();
+          coverRendered = true;
+        } catch (drawErr) {
+          console.warn('Erro ao desenhar foto de capa no canvas:', drawErr);
+        } finally {
+          if (cleanupFn) {
+            cleanupFn();
+          }
+        }
+      }
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
     }
 
+    // Se imageUrl for vazia ou ambos os carregamentos falharem: exibir bloco editorial
     if (!coverRendered) {
       ctx.fillStyle = '#1e1e1e';
       ctx.fillRect(photoX, photoY, photoW, photoH);

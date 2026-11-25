@@ -20,6 +20,16 @@ interface ArticleReaderProps {
 export default function ArticleReader({ article, relatedArticles = [] }: ArticleReaderProps) {
   const [fontSize, setFontSize] = useState<number>(16); // 14px a 20px
 
+  // Unifica a resolução da imagem da capa para uso idêntico na página e no gerador de Stories
+  const resolvedImageUrl = (
+    article.cover_image_url ||
+    article.cover_image ||
+    article.coverImage ||
+    article.image_url ||
+    article.image ||
+    ''
+  ).trim();
+
   const increaseFont = () => setFontSize((prev) => Math.min(prev + 1, 22));
   const decreaseFont = () => setFontSize((prev) => Math.max(prev - 1, 14));
 
@@ -45,13 +55,19 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
     <article className="w-full bg-rev-white min-h-screen">
       {/* Top Banner Fotográfico P&B */}
       <div className="relative w-full h-[55vh] min-h-[380px] max-h-[550px] bg-rev-black border-b border-rev-black overflow-hidden">
-        <Image
-          src={article.cover_image_url}
-          alt={article.title}
-          fill
-          priority
-          className="object-cover filter grayscale contrast-125"
-        />
+        {resolvedImageUrl ? (
+          <Image
+            src={resolvedImageUrl}
+            alt={article.title}
+            fill
+            priority
+            className="object-cover filter grayscale contrast-125"
+          />
+        ) : (
+          <div className="w-full h-full bg-neutral-900 flex items-center justify-center text-neutral-600 font-mono text-xs">
+            [ SEM IMAGEM DE CAPA ]
+          </div>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
         {/* Legenda Técnica da Capa (canto inferior direito) */}
@@ -299,23 +315,8 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
             {/* Compartilhamento para Instagram Stories e Redes */}
             <div id="compartilhar-artigo">
               <ShareArticle
-                article={{
-                  ...article,
-                  cover_image:
-                    article.cover_image ||
-                    article.cover_image_url ||
-                    article.coverImage ||
-                    article.image_url ||
-                    article.image ||
-                    '',
-                  cover_image_url:
-                    article.cover_image_url ||
-                    article.cover_image ||
-                    article.coverImage ||
-                    article.image_url ||
-                    article.image ||
-                    '',
-                }}
+                article={article}
+                imageUrl={resolvedImageUrl}
               />
             </div>
 
