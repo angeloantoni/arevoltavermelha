@@ -174,7 +174,7 @@ export async function getAllAuthors(): Promise<Author[]> {
         .select('*')
         .order('name', { ascending: true });
 
-      if (!error && data && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Author[];
       }
       if (error) {

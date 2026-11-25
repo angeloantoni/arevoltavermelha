@@ -194,21 +194,22 @@ export default function EditorialGrid({ initialArticles }: EditorialGridProps) {
                 </div>
 
                 {/* Rodapé do Card: Autor e Acesso Direto */}
-                <div className="p-5 pt-0 mt-2 border-t border-neutral-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2 truncate max-w-[210px]">
+                <div className="p-5 pt-0 mt-3 border-t border-neutral-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0 pr-1">
                     <AuthorAvatar
                       name={art.author?.name || 'Conselho Editorial'}
                       avatarUrl={art.author?.avatar_url}
-                      size="xs"
+                      size="custom"
+                      className="w-11 h-11 border-2 border-rev-black text-xs shadow-[1px_1px_0px_#111111]"
                     />
-                    <span className="text-[11px] font-mono text-neutral-700 uppercase font-semibold truncate">
+                    <span className="text-[11px] sm:text-xs font-mono text-neutral-800 uppercase font-bold truncate">
                       {art.author?.name || 'CONSELHO EDITORIAL'}
                     </span>
                   </div>
 
                   <Link
                     href={`/artigo/${art.slug}`}
-                    className="inline-flex items-center gap-1 text-xs font-mono font-bold text-rev-black group-hover:text-rev-red uppercase"
+                    className="inline-flex items-center gap-1 text-xs font-mono font-bold text-rev-black group-hover:text-rev-red uppercase flex-shrink-0"
                   >
                     <span>LER</span>
                     <ArrowRight className="w-3.5 h-3.5" />

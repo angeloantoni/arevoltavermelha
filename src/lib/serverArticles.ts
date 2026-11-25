@@ -149,6 +149,8 @@ export function revalidateEditorialPaths(slug?: string): void {
     revalidatePath('/', 'page');
     revalidatePath('/admin', 'page');
     revalidatePath('/busca', 'page');
+    revalidatePath('/autores', 'page');
+    revalidatePath('/autores');
     if (slug) {
       revalidatePath(`/artigo/${slug}`, 'page');
     }

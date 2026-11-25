@@ -281,7 +281,7 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Espaçador à esquerda no desktop */}
         <div className="hidden lg:block lg:col-span-2">
-          {/* Caixa lateral fixa com sumário e citação rápida */}
+          {/* Caixa lateral fixa com sumário */}
           <div className="sticky top-32 p-4 border border-rev-black bg-neutral-50 space-y-3 text-xs font-mono">
             <span className="font-display text-[11px] font-bold uppercase text-rev-red block border-b border-rev-black pb-1">
               ESTRUTURA EDITORIAL
@@ -289,9 +289,6 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
             <p className="text-[10px] text-neutral-600 leading-tight">
               Artigo formatado para leitura crítica com margens confortáveis e tipografia monoespaçada.
             </p>
-            <div className="pt-2">
-              <CiteButton article={article} />
-            </div>
           </div>
         </div>
 
@@ -320,29 +317,21 @@ export default function ArticleReader({ article, relatedArticles = [] }: Article
               />
             </div>
 
-            {/* Ações complementares de encerramento do artigo: Citação ABNT e Tags */}
-            <div className="mt-8 pt-4 border-t border-neutral-300 flex flex-wrap items-center justify-between gap-4 font-mono text-xs">
-              {article.tags && article.tags.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-neutral-500 uppercase font-bold mr-1">TAGS:</span>
-                  {article.tags.map((tag) => (
-                    <Link
-                      key={tag}
-                      href={`/busca?tag=${encodeURIComponent(tag)}`}
-                      className="text-[10px] bg-neutral-200 text-rev-black px-2 py-0.5 border border-rev-black hover:bg-rev-red hover:text-white transition-colors"
-                    >
-                      #{tag}
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div />
-              )}
-
-              <div>
-                <CiteButton article={article} />
+            {/* Tags Temáticas do Artigo */}
+            {article.tags && article.tags.length > 0 && (
+              <div className="mt-8 pt-4 border-t border-neutral-300 flex flex-wrap items-center gap-1.5 font-mono text-xs">
+                <span className="text-[10px] text-neutral-500 uppercase font-bold mr-1">TAGS:</span>
+                {article.tags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={`/busca?tag=${encodeURIComponent(tag)}`}
+                    className="text-[10px] bg-neutral-200 text-rev-black px-2 py-0.5 border border-rev-black hover:bg-rev-red hover:text-white transition-colors"
+                  >
+                    #{tag}
+                  </Link>
+                ))}
               </div>
-            </div>
+            )}
 
             {/* Ficha do Autor ao Final do Artigo */}
             {article.author && (

@@ -1,33 +1,34 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useAuthors } from '@/lib/authorStore';
-import { Article } from '@/lib/types';
+import { Author, Article } from '@/lib/types';
 import { BookOpen, ArrowRight } from 'lucide-react';
 import { getAuthorInitials } from '@/components/AuthorAvatar';
 
-export default function AutoresList() {
-  const { authors } = useAuthors();
-  const [articles, setArticles] = useState<Article[]>([]);
+interface AutoresListProps {
+  authors: Author[];
+  articles?: Article[];
+}
 
-  useEffect(() => {
-    fetch('/api/articles')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setArticles(data);
-        }
-      })
-      .catch((err) => console.error('Erro ao carregar artigos dos autores:', err));
-  }, []);
+export default function AutoresList({ authors, articles = [] }: AutoresListProps) {
+  if (!authors || authors.length === 0) {
+    return (
+      <div className="p-12 border-2 border-rev-black bg-neutral-100 text-center font-mono">
+        <p className="text-sm font-bold text-rev-black uppercase">
+          Nenhum autor ou tradutor cadastrado até o momento.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {authors.map((author) => {
         const authorArticles = articles.filter(
-          (a) => a.author_id === author.id || a.author?.slug === author.slug
+          (a) =>
+            a.author_id === author.id ||
+            a.author?.slug === author.slug ||
+            a.translator_id === author.id ||
+            a.translator?.slug === author.slug
         );
 
         return (
@@ -42,12 +43,22 @@ export default function AutoresList() {
                   author.avatar_url && author.avatar_url.includes('logo') ? 'bg-white p-4' : 'bg-neutral-900'
                 }`}
               >
+                {/* Fallback de iniciais estrutural (visível caso não haja foto ou em falha de carregamento) */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900 text-white font-mono select-none p-4 text-center z-0">
+                  <span className="font-display font-black text-4xl sm:text-5xl text-neutral-100 tracking-wider">
+                    {getAuthorInitials(author.name)}
+                  </span>
+                  <span className="text-[10px] text-rev-red uppercase font-bold tracking-widest mt-2 border-t border-neutral-800 pt-1">
+                    QUADRO EDITORIAL
+                  </span>
+                </div>
+
                 {author.avatar_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={author.avatar_url}
                     alt={author.name}
-                    className={`w-full h-full ${
+                    className={`relative z-1 w-full h-full ${
                       author.avatar_url.includes('logo') ? 'object-contain p-2' : 'object-cover'
                     } filter grayscale contrast-125 group-hover:scale-105 transition-transform duration-300`}
                     onError={(e) => {
@@ -56,20 +67,8 @@ export default function AutoresList() {
                   />
                 ) : null}
 
-                {/* Fallback de iniciais apenas quando não houver foto salva */}
-                {!author.avatar_url && (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-neutral-900 text-white font-mono select-none p-4 text-center">
-                    <span className="font-display font-black text-4xl sm:text-5xl text-neutral-100 tracking-wider">
-                      {getAuthorInitials(author.name)}
-                    </span>
-                    <span className="text-[10px] text-rev-red uppercase font-bold tracking-widest mt-2 border-t border-neutral-800 pt-1">
-                      QUADRO EDITORIAL
-                    </span>
-                  </div>
-                )}
-
                 <div className="absolute top-3 left-3 z-10">
-                  <span className="bg-rev-black text-white text-[10px] font-mono font-bold uppercase px-2.5 py-1 border border-rev-black">
+                  <span className="bg-rev-black text-white text-[10px] font-mono font-bold uppercase px-2.5 py-1 border border-rev-black shadow-sm">
                     {author.role}
                   </span>
                 </div>
@@ -80,7 +79,7 @@ export default function AutoresList() {
                 <h2 className="font-display font-black text-xl uppercase tracking-tight text-rev-black group-hover:text-rev-red transition-colors">
                   {author.name}
                 </h2>
-                <p className="mt-3 text-xs font-mono text-neutral-600 leading-relaxed">
+                <p className="mt-3 text-xs font-mono text-neutral-600 leading-relaxed line-clamp-3">
                   {author.bio}
                 </p>
               </div>

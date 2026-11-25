@@ -1,13 +1,23 @@
 import React from 'react';
 import { Users } from 'lucide-react';
 import AutoresList from './AutoresList';
+import { getAllAuthors } from '@/lib/serverAuthors';
+import { getAllArticles } from '@/lib/serverArticles';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata = {
   title: 'Autores & Tradutores — A Revolta Vermelha',
   description: 'Quadro de articulistas, pesquisadores históricos, tradutores e militantes da revista A Revolta Vermelha.',
 };
 
-export default function AutoresPage() {
+export default async function AutoresPage() {
+  const [authors, articles] = await Promise.all([
+    getAllAuthors(),
+    getAllArticles(),
+  ]);
+
   return (
     <div className="w-full bg-rev-white min-h-screen py-12">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
@@ -21,12 +31,12 @@ export default function AutoresPage() {
             AUTORES & TRADUTORES
           </h1>
           <p className="mt-3 text-sm font-mono text-neutral-600 max-w-2xl leading-relaxed">
-            Pesquisadores do Levante de 1935, teóricos marxistas clássicos, tradutores de fontes primárias e analistas da conjuntura brasileira e internacional.
+            Pesquisadores, estudantes, militantes marxistas, tradutores de fontes primárias, ensaístas e analistas da conjuntura local, nacional e internacional.
           </p>
         </div>
 
         {/* Grid Modular dos Autores Dinâmico */}
-        <AutoresList />
+        <AutoresList authors={authors} articles={articles} />
       </div>
     </div>
   );

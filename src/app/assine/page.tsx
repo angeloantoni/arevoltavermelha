@@ -46,25 +46,21 @@ export default function AssinePage() {
               </h2>
 
               <p className="text-xs sm:text-sm font-mono text-neutral-600 leading-relaxed mb-6">
-                Contribuição mensal voluntária para custear a manutenção da plataforma digital, remunerar traduções operárias e financiar investigações no interior do Rio Grande do Norte e outros estados.
+                Contribuição mensal voluntária para custear a manutenção da plataforma digital, financiar custos fixos. Seu apoio é fundamental para ampliar o debate revolucionário.
               </p>
 
               <div className="space-y-3 border-t border-neutral-200 pt-5 mb-8 text-xs font-mono text-neutral-800">
                 <div className="flex items-start gap-2.5">
                   <CheckCircle className="w-4 h-4 text-rev-red flex-shrink-0 mt-0.5" />
-                  <span>Acesso irrestrito a todos os cadernos e documentos digitalizados</span>
+                  <span>Participação em fóruns, discussões, sugestões;</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <CheckCircle className="w-4 h-4 text-rev-red flex-shrink-0 mt-0.5" />
-                  <span>Participação nos grupos de leitura e debates do conselho editorial</span>
+                  <span>Participar de sorteios e ter o nome creditado na edição física da revista;</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <CheckCircle className="w-4 h-4 text-rev-red flex-shrink-0 mt-0.5" />
-                  <span>Relatórios anuais de prestação de contas dos recursos arrecadados</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <CheckCircle className="w-4 h-4 text-rev-red flex-shrink-0 mt-0.5" />
-                  <span>Nome creditado no expediente oficial dos cadernos como colaborador</span>
+                  <span>Receber um exemplar da revista quando a meta for atingida.</span>
                 </div>
               </div>
             </div>
@@ -100,21 +96,17 @@ export default function AssinePage() {
               </h2>
 
               <p className="text-xs sm:text-sm font-mono text-neutral-600 leading-relaxed mb-6">
-                Adquira o exemplar impresso colecionável da revista. Projeto gráfico editorial com padrão suíço-brutalista, ensaios na íntegra e acabamento de arquivo.
+                Adquira o exemplar impresso colecionável da revista. Projeto gráfico editorial único, temático e personalizado com textos debatendo as questões locais, nacionais e internacionais. A edição ainda contará com traduções e ensaios inéditos. (Modalidade de compra apenas após a impressão, não incluído como campanha)
               </p>
 
               <div className="space-y-3 border-t border-neutral-300 pt-5 mb-8 text-xs font-mono text-neutral-800">
                 <div className="flex items-start gap-2.5">
                   <BookOpen className="w-4 h-4 text-rev-black flex-shrink-0 mt-0.5" />
-                  <span>Volume Nº 01: 96 páginas em papel Pólen Bold 90g com encadernação costurada</span>
+                  <span>Materiais gráficos adicionais;</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <BookOpen className="w-4 h-4 text-rev-black flex-shrink-0 mt-0.5" />
-                  <span>Pôster central encartado com vetor e cronologia do Levante de 1935 em Natal</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <BookOpen className="w-4 h-4 text-rev-black flex-shrink-0 mt-0.5" />
-                  <span>Traduções anotadas e ensaios exclusivos não disponíveis no site</span>
+                  <span>Tradução inédita de textos;</span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <BookOpen className="w-4 h-4 text-rev-black flex-shrink-0 mt-0.5" />
