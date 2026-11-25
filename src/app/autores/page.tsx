@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Users, BookOpen, ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import AuthorAvatarImage from '@/components/AuthorAvatarImage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -137,39 +138,20 @@ export default async function AutoresPage() {
                 className="border border-rev-black bg-white flex flex-col justify-between group hover:border-rev-red transition-all shadow-[4px_4px_0px_#111111]"
               >
                 <div>
-                  {/* Foto do Autor em P&B com Fallback Visual Construtivista */}
+                  {/* Foto do Autor em P&B delegada para Client Component sem onError no servidor */}
                   <div
                     className={`relative aspect-[4/3] w-full overflow-hidden border-b border-rev-black ${
                       isLogo ? 'bg-white p-4' : 'bg-neutral-900'
                     }`}
                   >
-                    {/* Fallback de iniciais estrutural (visível caso não haja foto ou em falha de carregamento) */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-neutral-900 text-white font-mono select-none p-4 text-center z-0">
-                      <span className="font-display font-black text-4xl sm:text-5xl text-neutral-100 tracking-wider">
-                        {getSafeInitials(name)}
-                      </span>
-                      <span className="text-[10px] text-rev-red uppercase font-bold tracking-widest mt-2 border-t border-neutral-800 pt-1">
-                        QUADRO EDITORIAL
-                      </span>
-                    </div>
+                    <AuthorAvatarImage
+                      avatarUrl={avatarUrl}
+                      name={name}
+                      isLogo={isLogo}
+                      initials={getSafeInitials(name)}
+                    />
 
-                    {/* Imagem nativa <img> para evitar erros de domínio externo do next/image */}
-                    {avatarUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={avatarUrl}
-                        alt={name}
-                        loading="lazy"
-                        className={`relative z-1 w-full h-full ${
-                          isLogo ? 'object-contain p-2' : 'object-cover'
-                        } filter grayscale contrast-125 group-hover:scale-105 transition-transform duration-300`}
-                        onError={(e) => {
-                          (e.currentTarget as HTMLElement).style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-
-                    <div className="absolute top-3 left-3 z-10">
+                    <div className="absolute top-3 left-3 z-10 pointer-events-none">
                       <span className="bg-rev-black text-white text-[10px] font-mono font-bold uppercase px-2.5 py-1 border border-rev-black shadow-sm">
                         {role}
                       </span>
